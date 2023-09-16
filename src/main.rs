@@ -20,7 +20,7 @@ impl Camera {
         2.0
     }
     fn viewport_width(self: &Self ) -> f64{
-        self.viewport_height() * (self.width / self.height) as f64
+        self.viewport_height() * (self.width as f64 / self.height as f64)
     }
     fn viewport_u(self: &Self) -> DVec3{
         DVec3::new(self.viewport_width() as f64, 0.0,0.0)
@@ -62,7 +62,6 @@ impl RayHittable for Sphere {
         let b = 2.0 * oc.dot(ray.direction);
         let c = oc.dot(oc)  - self.radius * self.radius;
         let discriminant = b*b - 4.0*a*c;
-//        std::io::stdout().write((discriminant.to_string()).as_bytes());
         discriminant >= 0.0
     }
 }
@@ -70,7 +69,7 @@ impl RayHittable for Sphere {
 
 fn create_camera() -> Camera {
     const aspect_ratio:f64 = 16.0 / 9.0;
-    const width:u16 = 1280 as u16;
+    const width:u16 = 1920 as u16;
     const height:u16 = (width as f64 / aspect_ratio) as u16;
     Camera {
         width,
@@ -102,7 +101,7 @@ fn save_ppm<T>(
     mut writer: Box< dyn Write>
 ) -> std::io::Result<()> 
 where T: Iterator<Item=DVec3>{
-    let mut buf_writer = BufWriter::with_capacity(2048,writer); 
+    let mut buf_writer = BufWriter::with_capacity(4096,writer); 
     buf_writer.write(b"P3\n")?;
     buf_writer.write(format!("{} {}\n", width, height).as_bytes())?;
     buf_writer.write(b"255\n")?;
