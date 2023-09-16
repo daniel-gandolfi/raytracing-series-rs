@@ -1,4 +1,4 @@
-use std::io::{Write, BufWriter};
+use std::{io::{Write, BufWriter}, ops::Mul, ops::Range};
 use core::option::Iter;
 use std::fs::File;
 use indicatif::ProgressIterator;
@@ -46,8 +46,18 @@ struct Ray {
     origin: DVec3,
     direction: DVec3
 }
+impl Ray {
+    fn at(self: &Self, t: f64) -> DVec3 {
+        self.origin + t * self.direction
+    }
+}
 trait RayHittable {
-    fn hit(self: &Self, ray: &Ray) -> bool;
+    fn hit(self: &Self, ray: &Ray, range: Range<f64>) -> Option<(
+        f64, // t
+        DVec3, // point
+        DVec3, // normal,
+        bool // front_face
+    )>;
 }
 
 struct Sphere {
@@ -55,14 +65,36 @@ struct Sphere {
     radius: f64
 }
 impl RayHittable for Sphere {
-    fn hit(self: &Self, ray:&Ray) -> bool {
+    fn hit(self: &Self, ray:&Ray, range: Range<f64>) -> Option<(f64, DVec3,DVec3, bool)>{
         let center = self.center;
         let oc = ray.origin - center;
-        let a = ray.direction.dot(ray.direction);
-        let b = 2.0 * oc.dot(ray.direction);
-        let c = oc.dot(oc)  - self.radius * self.radius;
-        let discriminant = b*b - 4.0*a*c;
-        discriminant >= 0.0
+        let a = ray.direction.length_squared();
+        let half_b = oc.dot(ray.direction);
+        let c = oc.length_squared()  - self.radius * self.radius;
+
+        let discriminant = half_b*half_b - a*c;
+        if discriminant < 0.0 { 
+             Option::None
+        } else {
+            let sqrtd = discriminant.sqrt();
+            let mut root = (-half_b - sqrtd) / a;
+            if !range.contains(&root) && &range.start != &root {
+                root = (-half_b + sqrtd) / a;
+                if !range.contains(&root) && &range.start != &root {
+                    return Option::None;
+                }            
+            }
+    
+            let hit_t = root;
+            let hit_point = ray.at(hit_t) ;
+            let hit_normal = (hit_point - center) / self.radius;               let front_face = ray.direction.dot(hit_normal) < 0.0;
+            Option::Some((
+                hit_t,
+                hit_point,
+                if front_face {hit_normal }else {-hit_normal},
+                front_face
+            ))
+        } 
     }
 }
 
@@ -80,14 +112,17 @@ fn create_camera() -> Camera {
     }
 }
 
-const SPHERE :Sphere =  Sphere{
-    center: DVec3 {x:0.0,y:0.0,z:-1.0}, 
-    radius: 0.5
-};
-fn ray_color(ray:Ray) -> DVec3 {
-    let hit_sphere = SPHERE.hit(&ray) ;
-    if hit_sphere {
-        return DVec3{x:1.0,y:0.0,z:0.0};
+
+
+fn ray_color(ray:Ray, world: &Vec<Box<dyn  RayHittable>>) -> DVec3 {
+    let normal_opt: Option<(f64, DVec3,DVec3, bool)> = world.iter().find_map(|obj| {
+        let range = 0.0..(f64::INFINITY);
+        obj.hit(&ray, range)
+    });
+    
+        
+    if let Some(hit_record) = normal_opt {
+        return (hit_record.2 + DVec3::ONE).mul(0.5); 
     }
     let unit = ray.direction.normalize_or_zero();
     let a = 0.5*(unit.y + 1.0);
@@ -118,6 +153,16 @@ where T: Iterator<Item=DVec3>{
 fn main() -> std::io::Result<()>{
     println!("Hello, world!");
     let camera = create_camera();
+    let world : Vec<Box<dyn RayHittable>> = vec![
+        Box::new(Sphere{
+            center: DVec3 {x:0.0,y:0.0,z:-1.0},
+            radius: 0.5
+        }),
+        Box::new(Sphere{
+            center: DVec3 {x:0.0,y:-100.5,z:-1.0},
+            radius: 100.0
+        })
+    ];
 
     let mut file = File::create("render.ppm")?;
     let color_iter = (0..camera.height).flat_map(|j|{
@@ -135,7 +180,9 @@ fn main() -> std::io::Result<()>{
                 direction
             }
         })
-    }).map(ray_color);
+    }).map(|ray| {
+        ray_color(ray, &world)
+    });
     save_ppm(camera.width ,camera.height, color_iter , Box::new(file))?;
 
     Ok(())
