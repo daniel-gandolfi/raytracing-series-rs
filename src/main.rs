@@ -16,12 +16,12 @@ use ray::{ray_color, Ray, RayHittable};
 use shapes::Sphere;
 
 fn create_camera() -> Camera {
-    const WIDTH: u16 = 1024 as u16;
+    const WIDTH: u16 = 600 as u16;
     Camera::new(DVec3::new(0.0, 0.0, 0.0), WIDTH, 90, 1.0, 16.0 / 9.0)
 }
 const samples_per_pixel : usize = 50;
+const max_ray_bounces : u8 = 10;
 fn main() -> std::io::Result<()> {
-    println!("Hello, world!");
     let camera = create_camera();
     let world: Vec<Box<dyn RayHittable>> = vec![
         Box::new(Sphere {
@@ -54,7 +54,7 @@ fn main() -> std::io::Result<()> {
             .array_chunks::<samples_per_pixel>()   
             .map(|ray_window| {
                 let color = (ray_window.iter().map(|ray| {
-                    ray_color(&ray, &world)
+                    ray_color(&ray, max_ray_bounces, &world)
                 }).sum::<DVec3>() *  ray_sample_scale_factor).clamp(DVec3::ZERO, color_clamp_upper);
                 color
             })

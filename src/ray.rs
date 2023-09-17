@@ -1,6 +1,7 @@
 use crate::camera::Camera;
 use glam::DVec3;
 use rand::Rng;
+use rand::rngs::ThreadRng;
 use std::ops::Mul;
 use std::ops::Range;
 use rand::thread_rng;
@@ -27,15 +28,53 @@ pub trait RayHittable {
         bool,  // front_face
     )>;
 }
+fn random_vec3_clamp(
+    rng: &mut ThreadRng,
+    min:f64, 
+    max:f64
+) -> DVec3 {
+   DVec3::new(
+        rng.gen_range(min..max),
+        rng.gen_range(min..max),
+        rng.gen_range(min..max)
+   )
+}
+fn random_in_unit_sphere() -> DVec3 {
+    let mut rng = thread_rng();
+    loop {
+        let random_vec = random_vec3_clamp(&mut rng, -1.0,1.0);
+        if random_vec.length_squared() < 1.0 {
+            return random_vec
+        }
+    }
+}
+fn random_unit_vector() -> DVec3{
+    random_in_unit_sphere().normalize()
+}
+fn random_on_hemisphere(hit_normal: &DVec3)-> DVec3 {
+   let on_unit_sphere = random_unit_vector();
+    if hit_normal.dot(on_unit_sphere) > 0.0{ // In the same hemisphere as the normal
+        on_unit_sphere
+    }else {
+        -on_unit_sphere
+    }
+}
 
-pub fn ray_color(ray: &Ray, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
+pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
     let normal_opt: Option<(f64, DVec3, DVec3, bool)> = world.iter().find_map(|obj| {
-        let range = 0.0..(f64::INFINITY);
+        let range = 0.001..(f64::INFINITY);
         obj.hit(&ray, range)
     });
 
     if let Some(hit_record) = normal_opt {
-        return (hit_record.2 + DVec3::ONE).mul(0.5);
+        let direction = random_on_hemisphere(&hit_record.2);
+        if max_bounces <= 1 {
+            return DVec3::ZERO
+        }
+        return 0.5 * ray_color(&Ray{
+            origin: hit_record.1,
+            direction
+        }, max_bounces -1, world) 
     }
     let unit = ray.direction.normalize_or_zero();
     let a = 0.5 * (unit.y + 1.0);
