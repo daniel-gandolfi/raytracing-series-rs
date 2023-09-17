@@ -7,7 +7,6 @@ pub trait RayTracingRenderer {
     where
         T: Iterator<Item = DVec3>;
 }
-
 pub struct PpmImageRenderer {
     file: File,
 }

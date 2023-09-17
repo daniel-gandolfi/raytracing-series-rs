@@ -1,7 +1,9 @@
 use crate::camera::Camera;
 use glam::DVec3;
+use rand::Rng;
 use std::ops::Mul;
 use std::ops::Range;
+use rand::thread_rng;
 
 #[derive(Default, Debug)]
 pub struct Ray {
@@ -26,7 +28,7 @@ pub trait RayHittable {
     )>;
 }
 
-pub fn ray_color(ray: Ray, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
+pub fn ray_color(ray: &Ray, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
     let normal_opt: Option<(f64, DVec3, DVec3, bool)> = world.iter().find_map(|obj| {
         let range = 0.0..(f64::INFINITY);
         obj.hit(&ray, range)
@@ -39,8 +41,17 @@ pub fn ray_color(ray: Ray, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
     let a = 0.5 * (unit.y + 1.0);
     return (1.0 - a) * DVec3::new(1.0, 1.0, 1.0) + a * DVec3::new(0.5, 0.7, 1.0);
 }
+fn pixel_sample_square(
+    pixel_delta_u: DVec3,
+    pixel_delta_v: DVec3
+) -> DVec3 {
+    let mut rng = thread_rng();
+    let px = -0.5 + rng.gen_range(0.0..1.0);
+    let py = -0.5 + rng.gen_range(0.0..1.0);
+    px * pixel_delta_u + py *pixel_delta_v
+}
 
-pub fn create_rays(camera: &Camera) -> impl Iterator<Item = Ray> {
+pub fn create_rays(camera: &Camera, samples_per_square: usize) -> impl Iterator<Item = Ray> {
     let pixel00_loc = camera.pixel_00_loc();
     let pixel_delta_u = camera.delta_pixel_u();
     let pixel_delta_v = camera.delta_pixel_v();
@@ -49,14 +60,24 @@ pub fn create_rays(camera: &Camera) -> impl Iterator<Item = Ray> {
     let camera_height = camera.height;
 
     (0..camera_height).flat_map(move |j| {
-        (0..camera_width).map(move |i| {
+        (0..camera_width).flat_map(move |i| {
+
             let pixel_center =
                 pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
-            let direction = pixel_center - camera_position;
-            Ray {
-                origin: camera_position.clone(),
-                direction,
-            }
+            (0..samples_per_square).into_iter().map(move |_| {
+                pixel_center + pixel_sample_square(
+                    pixel_delta_u,
+                    pixel_delta_v
+                )
+            }).map(move |pixel_sample|{   
+                let ray_origin = camera_position.clone();
+                let ray_direction = pixel_sample - ray_origin;
+
+                Ray {
+                    origin: ray_origin,
+                    direction: ray_direction,
+                }
+            })
         })
     })
 }

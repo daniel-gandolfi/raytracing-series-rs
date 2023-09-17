@@ -1,3 +1,5 @@
+#![feature(iter_array_chunks)]
+
 use core::option::Iter;
 use glam::DVec3;
 use indicatif::ProgressIterator;
@@ -14,10 +16,10 @@ use ray::{ray_color, Ray, RayHittable};
 use shapes::Sphere;
 
 fn create_camera() -> Camera {
-    const WIDTH: u16 = 1920 as u16;
+    const WIDTH: u16 = 1024 as u16;
     Camera::new(DVec3::new(0.0, 0.0, 0.0), WIDTH, 90, 1.0, 16.0 / 9.0)
 }
-
+const samples_per_pixel : usize = 50;
 fn main() -> std::io::Result<()> {
     println!("Hello, world!");
     let camera = create_camera();
@@ -43,11 +45,19 @@ fn main() -> std::io::Result<()> {
     let renderer = ppm_renderer::PpmImageRenderer::new("render.ppm")?;
 
     std::io::stdout().write(b"creating points\n");
+    let ray_sample_scale_factor = DVec3::splat(1.0 / samples_per_pixel as f64);
+    let color_clamp_upper = DVec3::splat(0.99999999999);
     renderer.render(
         camera.width,
         camera.height,
-        create_rays(&camera)
-            .map(|ray| ray_color(ray, &world))
+        create_rays(&camera, samples_per_pixel)
+            .array_chunks::<samples_per_pixel>()   
+            .map(|ray_window| {
+                let color = (ray_window.iter().map(|ray| {
+                    ray_color(&ray, &world)
+                }).sum::<DVec3>() *  ray_sample_scale_factor).clamp(DVec3::ZERO, color_clamp_upper);
+                color
+            })
             .progress_count(camera.width as u64 * camera.height as u64),
     )?;
 
