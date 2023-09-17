@@ -67,10 +67,11 @@ pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) 
     });
 
     if let Some(hit_record) = normal_opt {
-        let direction = random_on_hemisphere(&hit_record.2);
+        // If we've exceeded the ray bounce limit, no more light is gathered.
         if max_bounces <= 1 {
             return DVec3::ZERO
         }
+        let direction = hit_record.2 + random_unit_vector();
         return 0.5 * ray_color(&Ray{
             origin: hit_record.1,
             direction

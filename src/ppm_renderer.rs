@@ -31,9 +31,9 @@ impl RayTracingRenderer for PpmImageRenderer {
                 .write(
                     format!(
                         "{} {} {}\n",
-                        color.x * 255.0,
-                        color.y * 255.0,
-                        color.z * 255.0
+                        color.x.sqrt() * 255.0,
+                        color.y.sqrt() * 255.0,
+                        color.z.sqrt() * 255.0
                     )
                     .as_bytes(),
                 )
