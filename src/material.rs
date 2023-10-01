@@ -1,10 +1,11 @@
 use crate::ray::{random_unit_vector, HitRecord, Ray};
 use glam::DVec3;
+use rand::random;
 
 pub enum Material {
     Lambert(DVec3),
     Metal(DVec3, f64),
-    Dielectric(f64)
+    Dielectric(f64),
 }
 
 pub struct MaterialCalc {
@@ -28,12 +29,19 @@ fn reflect(direction: DVec3, normal: DVec3) -> DVec3 {
     direction - 2.0 * direction.dot(normal) * normal
 }
 
-fn refract(uv: DVec3, normal : DVec3, etai_over_etat: f64) -> DVec3 {
+fn refract(uv: DVec3, normal: DVec3, etai_over_etat: f64) -> DVec3 {
     let cos_theta = 1.0_f64.min(-uv.dot(normal));
     let ray_out_perp = etai_over_etat * (uv + cos_theta * normal);
     let ray_out_parallel = -(1.0_f64 - ray_out_perp.length_squared()).abs().sqrt() * normal;
 
     ray_out_perp + ray_out_parallel
+}
+
+fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
+    // Use Schlick's approximation for reflectance.
+    let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
+    r0 = r0 * r0;
+    r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
 }
 
 impl Material {
@@ -77,25 +85,33 @@ impl Material {
             }
             Material::Dielectric(index_of_refraction) => {
                 let attenuation = DVec3::ONE;
-                let refraction_ratio =  if hit.front_face { 
-                    1.0 / index_of_refraction 
-                } else { 
-                    *index_of_refraction 
+                let refraction_ratio = if hit.front_face {
+                    1.0 / index_of_refraction
+                } else {
+                    *index_of_refraction
                 };
 
                 let unit_direction = ray.direction.normalize();
                 let cos_theta = 1.0_f64.min(-unit_direction.dot(hit.normal));
-                let sin_theta = (1.0_f64 - cos_theta*cos_theta).sqrt();
+                let sin_theta = (1.0_f64 - cos_theta * cos_theta).sqrt();
 
                 let cannot_refract = refraction_ratio * sin_theta > 1.0;
 
-                let rebounce_direction = if cannot_refract { reflect(unit_direction, hit.normal) } else { refract(unit_direction, hit.normal, refraction_ratio) };
+                let rebounce_direction =
+                    if cannot_refract || reflectance(cos_theta, refraction_ratio) > random() {
+                        reflect(unit_direction, hit.normal)
+                    } else {
+                        refract(unit_direction, hit.normal, refraction_ratio)
+                    };
 
                 let scattered = Ray {
                     origin: hit.point,
-                    direction: rebounce_direction
+                    direction: rebounce_direction,
                 };
-                Some(MaterialCalc { attenuation, rebounce: scattered })
+                Some(MaterialCalc {
+                    attenuation,
+                    rebounce: scattered,
+                })
             }
         }
     }

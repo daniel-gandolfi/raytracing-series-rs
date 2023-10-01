@@ -31,16 +31,14 @@ const MATERIAL_CENTER: Material = Material::Lambert(DVec3 {
     y: 0.2,
     z: 0.5,
 });
-const MATERIAL_LEFT: Material = Material::Dielectric(
-    1.5
-);
+const MATERIAL_LEFT: Material = Material::Dielectric(1.5);
 const MATERIAL_RIGHT: Material = Material::Metal(
     DVec3 {
         x: 0.8,
         y: 0.6,
         z: 0.2,
     },
-    0.1,
+    0.01,
 );
 
 fn main() -> std::io::Result<()> {
@@ -70,7 +68,7 @@ fn main() -> std::io::Result<()> {
                 y: 0.0,
                 z: -1.0,
             },
-            radius: 0.5,
+            radius: -0.4,
             material: MATERIAL_LEFT,
         }),
         Box::new(Sphere {
