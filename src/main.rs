@@ -15,7 +15,7 @@ use ray::{create_rays, ray_color, RayHittable};
 use shapes::Sphere;
 
 fn create_camera() -> Camera {
-    const WIDTH: u16 = 1024_u16;
+    const WIDTH: u16 = 600_u16;
     Camera::new(DVec3::new(0.0, 0.0, 0.0), WIDTH, 90, 1.0, 16.0 / 9.0)
 }
 const SAMPLES_PER_PIXEL: usize = 80;
@@ -27,17 +27,12 @@ const MATERIAL_GROUND: Material = Material::Lambert(DVec3 {
     z: 0.0,
 });
 const MATERIAL_CENTER: Material = Material::Lambert(DVec3 {
-    x: 0.7,
-    y: 0.3,
-    z: 0.3,
+    x: 0.1,
+    y: 0.2,
+    z: 0.5,
 });
-const MATERIAL_LEFT: Material = Material::Metal(
-    DVec3 {
-        x: 0.8,
-        y: 0.8,
-        z: 0.8,
-    },
-    0.3,
+const MATERIAL_LEFT: Material = Material::Dielectric(
+    1.5
 );
 const MATERIAL_RIGHT: Material = Material::Metal(
     DVec3 {
@@ -45,7 +40,7 @@ const MATERIAL_RIGHT: Material = Material::Metal(
         y: 0.6,
         z: 0.2,
     },
-    1.0,
+    0.1,
 );
 
 fn main() -> std::io::Result<()> {
