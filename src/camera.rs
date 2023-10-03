@@ -5,32 +5,39 @@ pub struct Camera {
     pub width: u16,
     pub height: u16,
     pub position: DVec3,
-    fov: u8,
+
+    fov: f32,
     focal_length: f64,
+    viewport_height: f64,
 }
 
 impl Camera {
     pub fn new(
         position: DVec3,
         width: u16,
-        fov: u8,
+        fov: f32,
         focal_length: f64,
         aspect_ratio: f64,
     ) -> Camera {
         let height: u16 = (width as f64 / aspect_ratio) as u16;
+        let theta = (fov as f64).to_radians();
+        let h = (theta / 2.0).tan();
+        
+        let viewport_height = 2.0 * h * focal_length;
         Camera {
             width,
             height: if height < 1 { 1 } else { height },
             fov,
             position,
             focal_length,
+            viewport_height
         }
     }
     pub fn aspect_ratio(&self) -> f32 {
         self.width as f32 / self.height as f32
     }
     pub fn viewport_height(&self) -> f64 {
-        2.0
+       self.viewport_height
     }
     pub fn viewport_width(&self) -> f64 {
         self.viewport_height() * (self.width as f64 / self.height as f64)

@@ -2,7 +2,7 @@
 
 use glam::DVec3;
 use indicatif::ProgressIterator;
-use std::io::Write;
+use std::{io::Write, f64::consts::PI};
 mod camera;
 mod material;
 mod ppm_renderer;
@@ -16,7 +16,8 @@ use shapes::Sphere;
 
 fn create_camera() -> Camera {
     const WIDTH: u16 = 600_u16;
-    Camera::new(DVec3::new(0.0, 0.0, 0.0), WIDTH, 90, 1.0, 16.0 / 9.0)
+    
+    Camera::new(DVec3::new(0.0, 0.0, 0.0), WIDTH, 90.0, 1.0, 16.0 / 9.0)
 }
 const SAMPLES_PER_PIXEL: usize = 80;
 const MAX_RAY_BOUNCES: u8 = 50;
@@ -31,53 +32,50 @@ const MATERIAL_CENTER: Material = Material::Lambert(DVec3 {
     y: 0.2,
     z: 0.5,
 });
-const MATERIAL_LEFT: Material = Material::Dielectric(1.5);
-const MATERIAL_RIGHT: Material = Material::Metal(
-    DVec3 {
-        x: 0.8,
-        y: 0.6,
-        z: 0.2,
-    },
-    0.01,
-);
+const MATERIAL_LEFT: Material = Material::Lambert(DVec3::new(0.0,0.0,1.0));
+const MATERIAL_RIGHT: Material = Material::Lambert(DVec3::new(
+    1.0,
+    0.0,
+    0.0
+));
 
 fn main() -> std::io::Result<()> {
     let camera = create_camera();
     let world: Vec<Box<dyn RayHittable>> = vec![
+        // Box::new(Sphere {
+        //     center: DVec3 {
+        //         x: 0.0,
+        //         y: 0.0,
+        //         z: -1.0,
+        //     },
+        //     radius: 0.5,
+        //     material: MATERIAL_CENTER,
+        // }),
+        // Box::new(Sphere {
+        //     center: DVec3 {
+        //         x: 0.0,
+        //         y: 1.0,
+        //         z: -1.0,
+        //     },
+        //     radius: 0.5,
+        //     material: MATERIAL_CENTER,
+        // }),
         Box::new(Sphere {
             center: DVec3 {
-                x: 0.0,
+                x: -(PI/4.0).cos(),
                 y: 0.0,
                 z: -1.0,
             },
-            radius: 0.5,
-            material: MATERIAL_CENTER,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: 0.0,
-                y: 1.0,
-                z: -1.0,
-            },
-            radius: 0.5,
-            material: MATERIAL_CENTER,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: -1.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            radius: -0.4,
+            radius: (PI/4.0).cos(),
             material: MATERIAL_LEFT,
         }),
         Box::new(Sphere {
             center: DVec3 {
-                x: 1.0,
+                x: (PI/4.0).cos(),
                 y: 0.0,
                 z: -1.0,
             },
-            radius: 0.5,
+            radius: (PI/4.0).cos(),
             material: MATERIAL_RIGHT,
         }),
         Box::new(Sphere {
