@@ -56,6 +56,16 @@ fn random_on_hemisphere(hit_normal: &DVec3) -> DVec3 {
     }
 }
 
+fn random_in_unit_disk() -> DVec3 {
+    let mut rng = thread_rng();
+    loop {
+        let p = DVec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
+        if p.length_squared() < 1.0 {
+            return p;
+        }
+    }
+}
+
 pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
     world
         .iter()
@@ -93,11 +103,21 @@ fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
     px * pixel_delta_u + py * pixel_delta_v
 }
 
+fn defocus_disk_sample(camera: &Camera) -> DVec3 {
+    let p = random_in_unit_disk();
+    camera.position + (p.x * camera.defocus_disk_u()) + (p.y * camera.defocus_disk_v())
+}
+
 pub fn create_rays(camera: &Camera, samples_per_square: usize) -> impl Iterator<Item = Ray> {
+    let ray_origin = if camera.defocus_angle() <= 0.0 {
+        camera.position
+    } else {
+        defocus_disk_sample(camera)
+    };
+
     let pixel00_loc = camera.pixel_00_loc();
     let pixel_delta_u = camera.delta_pixel_u();
     let pixel_delta_v = camera.delta_pixel_v();
-    let camera_position = camera.position;
     let camera_width = camera.width;
     let camera_height = camera.height;
 
@@ -108,7 +128,6 @@ pub fn create_rays(camera: &Camera, samples_per_square: usize) -> impl Iterator<
             (0..samples_per_square)
                 .map(move |_| pixel_center + pixel_sample_square(pixel_delta_u, pixel_delta_v))
                 .map(move |pixel_sample| {
-                    let ray_origin = camera_position;
                     let ray_direction = pixel_sample - ray_origin;
 
                     Ray {
