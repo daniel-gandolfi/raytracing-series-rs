@@ -9,28 +9,69 @@ pub struct Camera {
     fov: f32,
     focal_length: f64,
     viewport_height: f64,
+    viewport_width: f64,
+    viewport_u: DVec3,
+    viewport_v: DVec3,
+    pixel_delta_u : DVec3,
+    pixel_delta_v : DVec3,
+    viewport_upper_left : DVec3,
+    pixel_00_loc: DVec3
 }
 
 impl Camera {
     pub fn new(
-        position: DVec3,
-        width: u16,
+        look_from: DVec3,
+        look_at: DVec3,
+        vup: DVec3,
+        image_width: u16,
         fov: f32,
-        focal_length: f64,
         aspect_ratio: f64,
     ) -> Camera {
-        let height: u16 = (width as f64 / aspect_ratio) as u16;
+        let height: u16 = (image_width as f64 / aspect_ratio) as u16;
         let theta = (fov as f64).to_radians();
         let h = (theta / 2.0).tan();
         
+        // Determine viewport dimensions.
+        let focal_length = (look_from - look_at).length();
+        
         let viewport_height = 2.0 * h * focal_length;
+        let viewport_width = viewport_height * (image_width as f64 / height as f64);
+        
+        // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
+        let w = (look_from - look_at).normalize();
+        let u = vup.cross(w).normalize();
+        let v = w.cross(u);
+
+        // Calculate the vectors across the horizontal and down the vertical viewport edges.
+        let viewport_u = viewport_width * u;    // Vector across viewport horizontal edge
+        let viewport_v = viewport_height * -v;  // Vector down viewport vertical edge
+        
+
+        let height =if height < 1 { 1 } else { height }; 
+        // Calculate the horizontal and vertical delta vectors from pixel to pixel.
+        let pixel_delta_u = viewport_u / DVec3::splat(image_width as f64);
+        let pixel_delta_v = viewport_v / DVec3::splat(height as f64);
+        
+
+        let position = look_from;
+        let viewport_upper_left = position - (focal_length * w) - viewport_u/2.0 - viewport_v/2.0;
+        let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+
+
         Camera {
-            width,
-            height: if height < 1 { 1 } else { height },
+            width: image_width,
+            height, 
             fov,
-            position,
+            position: look_from,
             focal_length,
-            viewport_height
+            viewport_height,
+            viewport_width,
+            viewport_u,
+            viewport_v,
+            pixel_delta_u,
+            pixel_delta_v,
+            viewport_upper_left,
+            pixel_00_loc
         }
     }
     pub fn aspect_ratio(&self) -> f32 {
@@ -40,27 +81,24 @@ impl Camera {
        self.viewport_height
     }
     pub fn viewport_width(&self) -> f64 {
-        self.viewport_height() * (self.width as f64 / self.height as f64)
+        self.viewport_width
     }
     fn viewport_u(&self) -> DVec3 {
-        DVec3::new(self.viewport_width(), 0.0, 0.0)
+        self.viewport_u
     }
     fn viewport_v(&self) -> DVec3 {
-        DVec3::new(0.0, -(self.viewport_height()), 0.0)
+        self.viewport_v
     }
     pub fn delta_pixel_u(&self) -> DVec3 {
-        self.viewport_u() / (self.width as f64)
+        self.pixel_delta_u
     }
     pub fn delta_pixel_v(&self) -> DVec3 {
-        self.viewport_v() / (self.height as f64)
+        self.pixel_delta_v
     }
     pub fn viewport_upper_left(&self) -> DVec3 {
-        self.position
-            - DVec3::new(0.0, 0.0, self.focal_length)
-            - self.viewport_u() / 2.0
-            - self.viewport_v() / 2.0
+        self.viewport_upper_left    
     }
     pub fn pixel_00_loc(&self) -> DVec3 {
-        self.viewport_upper_left() + 0.5 * (self.delta_pixel_u() + self.delta_pixel_v())
+        self.pixel_00_loc
     }
 }
