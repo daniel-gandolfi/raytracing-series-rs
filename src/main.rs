@@ -2,7 +2,8 @@
 
 use glam::DVec3;
 use indicatif::ProgressIterator;
-use std::{f64::consts::PI, io::Write};
+use rand::{rngs::ThreadRng, Rng};
+use std::io::Write;
 mod camera;
 mod material;
 mod ppm_renderer;
@@ -15,15 +16,15 @@ use ray::{create_rays, ray_color, RayHittable};
 use shapes::Sphere;
 
 fn create_camera() -> Camera {
-    const WIDTH: u16 = 600_u16;
+    const WIDTH: u16 = 1200_u16;
 
-    let lookfrom = DVec3::new(-2.0, 2.0, 1.0);
-    let lookat = DVec3::new(0.0, 0.0, -1.0);
+    let lookfrom = DVec3::new(13.0, 2.0, 3.0);
+    let lookat = DVec3::new(0.0, 0.0, 0.0);
     let vup = DVec3::new(0.0, 1.0, 0.0);
     let fov = 20.0;
-    Camera::new(lookfrom, lookat, vup, WIDTH, fov, 16.0 / 9.0, 10.0, 3.4)
+    Camera::new(lookfrom, lookat, vup, WIDTH, fov, 16.0 / 9.0, 0.6, 10.0)
 }
-const SAMPLES_PER_PIXEL: usize = 80;
+const SAMPLES_PER_PIXEL: usize = 500;
 const MAX_RAY_BOUNCES: u8 = 50;
 
 const MATERIAL_GROUND: Material = Material::Lambert(DVec3 {
@@ -38,65 +39,94 @@ const MATERIAL_CENTER: Material = Material::Lambert(DVec3 {
 });
 const MATERIAL_LEFT: Material = Material::Dielectric(1.5);
 const MATERIAL_RIGHT: Material = Material::Metal(DVec3::new(0.8, 0.6, 0.2), 0.0);
+fn random_color(range: std::ops::Range<f64>) -> DVec3 {
+    let mut random = ThreadRng::default();
+    DVec3::new(
+        random.gen_range(range.clone()),
+        random.gen_range(range.clone()),
+        random.gen_range(range),
+    )
+}
+fn create_world() -> Vec<Box<dyn RayHittable>> {
+    let mut world: Vec<Box<dyn RayHittable>> = Vec::new();
+    world.push(Box::new(Sphere {
+        center: DVec3 {
+            x: 0.0,
+            y: -100.5,
+            z: -1.0,
+        },
+        radius: 100.0,
+        material: MATERIAL_GROUND,
+    }));
 
+    let ball_centers_iter = (-11..11)
+        .into_iter()
+        .flat_map(|a| (-11..11).into_iter().map(move |b| (a, b)))
+        .map(|(a, b)| {
+            DVec3::new(
+                a as f64 + 0.9 * rand::random::<f64>(),
+                0.2,
+                b as f64 + 0.9 * rand::random::<f64>(),
+            )
+        });
+    let spheres_iter = ball_centers_iter
+        .filter(|center| (*center - DVec3::new(4.0, 0.2, 0.0)).length() > 0.9)
+        .map(|center| {
+            let choose_mat = rand::random::<f32>();
+            if choose_mat < 0.8 {
+                //diffuse
+                let albedo = random_color(0.0..1.0) * random_color(0.0..1.0);
+
+                Sphere {
+                    center,
+                    radius: 0.2,
+                    material: Material::Lambert(albedo),
+                }
+            } else if choose_mat < 0.95 {
+                //metal
+                Sphere {
+                    center,
+                    radius: 0.2,
+                    material: Material::Metal(
+                        random_color(0.5..1.0),
+                        rand::thread_rng().gen_range(0.0..0.5),
+                    ),
+                }
+            } else {
+                //glass
+                Sphere {
+                    center,
+                    radius: 0.2,
+                    material: Material::Dielectric(1.5),
+                }
+            }
+        });
+    spheres_iter.for_each(|sphere| {
+        world.push(Box::new(sphere));
+    });
+
+    world.push(Box::new(Sphere {
+        center: DVec3::new(0.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Material::Dielectric(1.5),
+    }));
+    world.push(Box::new(Sphere {
+        center: DVec3::new(-4.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Material::Lambert(DVec3::new(0.4, 0.2, 0.1)),
+    }));
+
+    world.push(Box::new(Sphere {
+        center: DVec3::new(4.0, 1.0, 0.0),
+        radius: 1.0,
+        material: Material::Metal(DVec3::new(0.7, 0.6, 0.5), 0.0),
+    }));
+
+    world
+}
 fn main() -> std::io::Result<()> {
     let camera = create_camera();
-    let world: Vec<Box<dyn RayHittable>> = vec![
-        Box::new(Sphere {
-            center: DVec3 {
-                x: 0.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            radius: 0.5,
-            material: MATERIAL_CENTER,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: 0.0,
-                y: 1.0,
-                z: -1.0,
-            },
-            radius: 0.5,
-            material: MATERIAL_CENTER,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: -1.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            radius: 0.5,
-            material: MATERIAL_LEFT,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: -1.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            radius: -0.4,
-            material: MATERIAL_LEFT,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: 1.0,
-                y: 0.0,
-                z: -1.0,
-            },
-            radius: 0.5,
-            material: MATERIAL_RIGHT,
-        }),
-        Box::new(Sphere {
-            center: DVec3 {
-                x: 0.0,
-                y: -100.5,
-                z: -1.0,
-            },
-            radius: 100.0,
-            material: MATERIAL_GROUND,
-        }),
-    ];
+    let world: Vec<Box<dyn RayHittable>> = create_world();
 
     let renderer = ppm_renderer::PpmImageRenderer::new("render.ppm")?;
 
