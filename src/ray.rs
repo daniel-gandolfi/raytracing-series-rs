@@ -69,6 +69,7 @@ fn random_in_unit_disk() -> DVec3 {
 pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
     world
         .iter()
+        .rev()
         .find_map(|obj| {
             let range = 0.001..(f64::INFINITY);
 

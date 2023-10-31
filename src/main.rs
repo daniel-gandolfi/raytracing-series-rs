@@ -2,8 +2,9 @@
 
 use glam::DVec3;
 use indicatif::ProgressIterator;
+use itertools::Itertools;
 use rand::{rngs::ThreadRng, Rng};
-use std::io::Write;
+use std::{io::Write, sync::atomic::Ordering, ops::Bound};
 mod camera;
 mod material;
 mod ppm_renderer;
@@ -28,9 +29,9 @@ const SAMPLES_PER_PIXEL: usize = 500;
 const MAX_RAY_BOUNCES: u8 = 50;
 
 const MATERIAL_GROUND: Material = Material::Lambert(DVec3 {
-    x: 0.8,
-    y: 0.8,
-    z: 0.0,
+    x: 0.5,
+    y: 0.5,
+    z: 0.5,
 });
 const MATERIAL_CENTER: Material = Material::Lambert(DVec3 {
     x: 0.1,
@@ -47,18 +48,8 @@ fn random_color(range: std::ops::Range<f64>) -> DVec3 {
         random.gen_range(range),
     )
 }
-fn create_world() -> Vec<Box<dyn RayHittable>> {
-    let mut world: Vec<Box<dyn RayHittable>> = Vec::new();
-    world.push(Box::new(Sphere {
-        center: DVec3 {
-            x: 0.0,
-            y: -100.5,
-            z: -1.0,
-        },
-        radius: 100.0,
-        material: MATERIAL_GROUND,
-    }));
 
+fn create_world(camera: &Camera) -> Vec<Box<dyn RayHittable>> {
     let ball_centers_iter = (-11..11)
         .into_iter()
         .flat_map(|a| (-11..11).into_iter().map(move |b| (a, b)))
@@ -77,7 +68,7 @@ fn create_world() -> Vec<Box<dyn RayHittable>> {
                 //diffuse
                 let albedo = random_color(0.0..1.0) * random_color(0.0..1.0);
 
-                Sphere {
+                Sphere { 
                     center,
                     radius: 0.2,
                     material: Material::Lambert(albedo),
@@ -101,32 +92,52 @@ fn create_world() -> Vec<Box<dyn RayHittable>> {
                 }
             }
         });
-    spheres_iter.for_each(|sphere| {
-        world.push(Box::new(sphere));
+        let mut spheres_vec: Vec<Sphere> = spheres_iter.collect_vec();
+        let mut static_sphere_vec = &mut vec![
+            Sphere {
+                center: DVec3 {
+                    x: 0.0,
+                    y: -1000.0,
+                    z: 0.0,
+                },
+                radius: 1000.0,
+                material: MATERIAL_GROUND,
+            },
+            Sphere {
+                center: DVec3::new(0.0, 1.0, 0.0),
+                radius: 1.0,
+                material: Material::Dielectric(1.5),
+            },
+            Sphere {
+                center: DVec3::new(-4.0, 1.0, 0.0),
+                radius: 1.0,
+                material: Material::Lambert(DVec3::new(0.4, 0.2, 0.1)),
+            },
+            Sphere {
+                center: DVec3::new(4.0, 1.0, 0.0),
+                radius: 1.0,
+                material: Material::Metal(DVec3::new(0.7, 0.6, 0.5), 0.0),
+            }
+        ];
+    spheres_vec.append(&mut static_sphere_vec);
+    spheres_vec.sort_by(|a,b|{
+        a.center.distance_squared(camera.position).total_cmp(
+            &b.center.distance_squared(camera.position)
+        )
     });
 
-    world.push(Box::new(Sphere {
-        center: DVec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        material: Material::Dielectric(1.5),
-    }));
-    world.push(Box::new(Sphere {
-        center: DVec3::new(-4.0, 1.0, 0.0),
-        radius: 1.0,
-        material: Material::Lambert(DVec3::new(0.4, 0.2, 0.1)),
-    }));
+    let mut world_dyn: Vec<Box<dyn RayHittable>> = Vec::with_capacity(spheres_vec.capacity());
 
-    world.push(Box::new(Sphere {
-        center: DVec3::new(4.0, 1.0, 0.0),
-        radius: 1.0,
-        material: Material::Metal(DVec3::new(0.7, 0.6, 0.5), 0.0),
-    }));
-
-    world
+    for i in 0..spheres_vec.len() {
+        if let Some(sphere) = spheres_vec.pop(){
+            world_dyn.push(Box::new(sphere) as Box<dyn RayHittable>)
+        }
+    }
+    world_dyn
 }
 fn main() -> std::io::Result<()> {
     let camera = create_camera();
-    let world: Vec<Box<dyn RayHittable>> = create_world();
+    let world: Vec<Box<dyn RayHittable>> = create_world(&camera);
 
     let renderer = ppm_renderer::PpmImageRenderer::new("render.ppm")?;
 
