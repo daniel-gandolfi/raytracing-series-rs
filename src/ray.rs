@@ -4,6 +4,7 @@ use glam::DVec3;
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use rand::Rng;
+use rayon::prelude::*;
 use std::ops::Range;
 
 #[derive(Default, Debug)]
@@ -13,7 +14,7 @@ pub struct Ray {
 }
 impl Ray {
     pub fn at(&self, t: f64) -> DVec3 {
-        self.origin + t * self.direction
+        self.direction.mul_add(DVec3::splat(t), self.origin)
     }
 }
 
@@ -23,9 +24,23 @@ pub struct HitRecord {
     pub time: f64,
     pub front_face: bool,
 }
-pub trait RayHittable {
-    fn get_material(&self) -> &Material;
-    fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord>;
+
+pub enum RayHittableEnum {
+    Sphere(crate::shapes::Sphere),
+}
+
+impl RayHittableEnum {
+    pub const fn get_material(&self) -> &Material {
+        match self {
+            RayHittableEnum::Sphere(s) => s.get_material(),
+        }
+    }
+
+    fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord> {
+        match self {
+            RayHittableEnum::Sphere(s) => s.hit(ray, range),
+        }
+    }
 }
 fn random_vec3_clamp(rng: &mut ThreadRng, min: f64, max: f64) -> DVec3 {
     DVec3::new(
@@ -66,7 +81,7 @@ fn random_in_unit_disk() -> DVec3 {
     }
 }
 
-pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) -> DVec3 {
+pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<RayHittableEnum>) -> DVec3 {
     world
         .iter()
         .rev()
@@ -93,49 +108,62 @@ pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<Box<dyn RayHittable>>) 
         .unwrap_or_else(|| {
             let unit = ray.direction.normalize_or_zero();
             let a = 0.5 * (unit.y + 1.0);
-            (1.0 - a) * DVec3::new(1.0, 1.0, 1.0) + a * DVec3::new(0.5, 0.7, 1.0)
+            (1.0 - a) * DVec3::ONE + a * DVec3::new(0.5, 0.7, 1.0)
         })
 }
 
 fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
     let mut rng = thread_rng();
-    let px = -0.5 + rng.gen_range(0.0..1.0);
-    let py = -0.5 + rng.gen_range(0.0..1.0);
+    let px = rng.gen_range(-0.5..0.5);
+    let py = rng.gen_range(-0.5..0.5);
     px * pixel_delta_u + py * pixel_delta_v
 }
 
-fn defocus_disk_sample(camera: &Camera) -> DVec3 {
+fn defocus_disk_sample(camera_position: DVec3,defocus_disk_u: DVec3, defocus_disk_v:DVec3) -> DVec3 {
     let p = random_in_unit_disk();
-    camera.position + (p.x * camera.defocus_disk_u()) + (p.y * camera.defocus_disk_v())
+     camera_position + (p.x * defocus_disk_u) + (p.y *defocus_disk_v)
 }
 
-pub fn create_rays(camera: &Camera, samples_per_square: usize) -> impl Iterator<Item = Ray> {
-    let ray_origin = if camera.defocus_angle() <= 0.0 {
-        camera.position
-    } else {
-        defocus_disk_sample(camera)
-    };
+pub fn create_rays(
+    camera: &Camera,
+    samples_per_square: usize,
+) -> impl IndexedParallelIterator<Item = impl Iterator<Item = Ray>> {
+
 
     let pixel00_loc = camera.pixel_00_loc();
     let pixel_delta_u = camera.delta_pixel_u();
     let pixel_delta_v = camera.delta_pixel_v();
-    let camera_width = camera.width;
-    let camera_height = camera.height;
+    let camera_width = camera.width as u32;
+    let camera_height = camera.height as u32;
+    let defocus_angle = camera.defocus_angle();
 
-    (0..camera_height).flat_map(move |j| {
-        (0..camera_width).flat_map(move |i| {
+    let camera_position = camera.position;
+    let defocus_disk_u = camera.defocus_disk_u();
+    let defocus_disk_v = camera.defocus_disk_v();
+    
+
+    (0..(camera_height * camera_width))
+        .into_par_iter()
+        .map(move |compound_width_height| {
+
+            let j = compound_width_height / camera_width;
+            let i = compound_width_height % camera_width;
             let pixel_center =
                 pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
-            (0..samples_per_square)
-                .map(move |_| pixel_center + pixel_sample_square(pixel_delta_u, pixel_delta_v))
-                .map(move |pixel_sample| {
-                    let ray_direction = pixel_sample - ray_origin;
 
-                    Ray {
-                        origin: ray_origin,
-                        direction: ray_direction,
-                    }
-                })
+            (0..samples_per_square).map(move |_| {
+                let ray_origin = if defocus_angle <= 0.0 {
+                    camera_position
+                } else {
+                    defocus_disk_sample(camera_position, defocus_disk_u, defocus_disk_v)
+                };
+                let pixel_sample = pixel_center + pixel_sample_square(pixel_delta_u, pixel_delta_v);
+                let ray_direction = pixel_sample - ray_origin;
+
+                Ray {
+                    origin: ray_origin,
+                    direction: ray_direction,
+                }
+            })
         })
-    })
 }

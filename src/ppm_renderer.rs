@@ -1,11 +1,16 @@
-use glam::DVec3;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 
 pub trait RayTracingRenderer {
-    fn render<T>(&self, width: u16, height: u16, buffer: T) -> std::io::Result<()>
+    fn render<Pixel, IteratorType>(
+        &self,
+        width: u16,
+        height: u16,
+        buffer: IteratorType,
+    ) -> std::io::Result<()>
     where
-        T: Iterator<Item = DVec3>;
+        Pixel: AsRef<[f64; 3]>,
+        IteratorType: Iterator<Item = Pixel>;
 }
 pub struct PpmImageRenderer {
     file: File,
@@ -16,25 +21,33 @@ impl PpmImageRenderer {
         Ok(PpmImageRenderer { file })
     }
 }
+
 impl RayTracingRenderer for PpmImageRenderer {
-    fn render<T>(&self, width: u16, height: u16, buffer: T) -> std::io::Result<()>
+    fn render<Pixel, IteratorType>(
+        &self,
+        width: u16,
+        height: u16,
+        buffer: IteratorType,
+    ) -> std::io::Result<()>
     where
-        T: Iterator<Item = DVec3>,
+        Pixel: AsRef<[f64; 3]>,
+        IteratorType: Iterator<Item = Pixel>,
     {
-        let mut buf_writer = BufWriter::with_capacity(4096 * 16, &self.file);
+        let mut buf_writer = std::io::BufWriter::with_capacity(1024, &self.file);
         write!(&mut buf_writer, "P3\n{width} {height}\n255\n")?;
 
         buffer
-            .map(|color| {
-                write!(
+            .map(move |color| {
+                let [r, g, b] = color.as_ref();
+                writeln!(
                     &mut buf_writer,
-                    "{} {} {}\n",
-                    color.x.sqrt() * 255.0,
-                    color.y.sqrt() * 255.0,
-                    color.z.sqrt() * 255.0
+                    "{} {} {}",
+                    r.sqrt() * 255.0,
+                    g.sqrt() * 255.0,
+                    b.sqrt() * 255.0
                 )
             })
-            .find(|res| res.is_err())
+            .find(|err| err.is_err())
             .unwrap_or(Ok(()))
     }
 }

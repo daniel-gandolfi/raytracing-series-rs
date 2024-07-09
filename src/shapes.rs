@@ -1,5 +1,4 @@
 use crate::material::Material;
-use crate::ray::RayHittable;
 use crate::ray::{HitRecord, Ray};
 use glam::DVec3;
 use std::ops::Range;
@@ -10,16 +9,28 @@ pub struct Sphere {
     pub material: Material,
 }
 
-impl RayHittable for Sphere {
-    fn get_material(&self) -> &Material {
+impl Sphere {
+    pub const fn get_material(&self) -> &Material {
         &self.material
     }
 
-    fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord> {
+    pub fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord> {
         let center = self.center;
         let oc = ray.origin - center;
-        let a = ray.direction.length_squared();
         let half_b = oc.dot(ray.direction);
+
+        /*
+         * Consider the ray is heading somewhere, eg to (2,2,2) with origin  (1,1,1)
+         * Now lets take the sphere with center (3,3,3): from the ray origin perspective the sphere center is (1,1,1)
+         *   so they have the same "direction" from the ray origin perspective.
+         * If this conditition is false we can skip a couple of checks
+         */
+        let does_ray_have_same_direction_as_center_from_ray_origin_perspective = -half_b < 0.0;
+
+        if does_ray_have_same_direction_as_center_from_ray_origin_perspective {
+            return None;
+        }
+        let a = ray.direction.length_squared();
         let c = oc.length_squared() - self.radius * self.radius;
 
         let discriminant = half_b * half_b - a * c;

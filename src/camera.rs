@@ -7,11 +7,8 @@ pub struct Camera {
     pub position: DVec3,
 
     fov: f32,
-    focal_length: f64,
     viewport_height: f64,
     viewport_width: f64,
-    viewport_u: DVec3,
-    viewport_v: DVec3,
     pixel_delta_u: DVec3,
     pixel_delta_v: DVec3,
     viewport_upper_left: DVec3,
@@ -35,9 +32,6 @@ impl Camera {
         let height: u16 = (image_width as f64 / aspect_ratio) as u16;
         let theta = (fov as f64).to_radians();
         let h = (theta / 2.0).tan();
-
-        // Determine viewport dimensions.
-        let focal_length = (look_from - look_at).length();
 
         let viewport_height = 2.0 * h * focus_dist;
         let viewport_width = viewport_height * (image_width as f64 / height as f64);
@@ -70,11 +64,8 @@ impl Camera {
             height,
             fov,
             position: look_from,
-            focal_length,
             viewport_height,
             viewport_width,
-            viewport_u,
-            viewport_v,
             pixel_delta_u,
             pixel_delta_v,
             viewport_upper_left,
@@ -84,40 +75,34 @@ impl Camera {
             defocus_disk_v,
         }
     }
-    pub fn aspect_ratio(&self) -> f32 {
+    pub const fn aspect_ratio(&self) -> f32 {
         self.width as f32 / self.height as f32
     }
-    pub fn viewport_height(&self) -> f64 {
+    pub const fn viewport_height(&self) -> f64 {
         self.viewport_height
     }
-    pub fn viewport_width(&self) -> f64 {
+    pub const fn viewport_width(&self) -> f64 {
         self.viewport_width
     }
-    fn viewport_u(&self) -> DVec3 {
-        self.viewport_u
-    }
-    fn viewport_v(&self) -> DVec3 {
-        self.viewport_v
-    }
-    pub fn delta_pixel_u(&self) -> DVec3 {
+    pub const fn delta_pixel_u(&self) -> DVec3 {
         self.pixel_delta_u
     }
-    pub fn delta_pixel_v(&self) -> DVec3 {
+    pub const fn delta_pixel_v(&self) -> DVec3 {
         self.pixel_delta_v
     }
-    pub fn viewport_upper_left(&self) -> DVec3 {
+    pub const fn viewport_upper_left(&self) -> DVec3 {
         self.viewport_upper_left
     }
-    pub fn pixel_00_loc(&self) -> DVec3 {
+    pub const fn pixel_00_loc(&self) -> DVec3 {
         self.pixel_00_loc
     }
-    pub fn defocus_angle(&self) -> f64 {
+    pub const fn defocus_angle(&self) -> f64 {
         self.defocus_angle
     }
-    pub fn defocus_disk_u(&self) -> DVec3 {
+    pub const fn defocus_disk_u(&self) -> DVec3 {
         self.defocus_disk_u
     }
-    pub fn defocus_disk_v(&self) -> DVec3 {
+    pub const fn defocus_disk_v(&self) -> DVec3 {
         // Defocus disk vertical radius
         self.defocus_disk_v
     }

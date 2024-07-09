@@ -15,14 +15,9 @@ pub struct MaterialCalc {
 
 fn is_scatter_near_zero(direction: &DVec3) -> bool {
     const LIMIT: f64 = 1e-8;
+    const LIMIT_DEVC3: DVec3 = DVec3::splat(LIMIT);
 
-    direction
-        .cmplt(DVec3 {
-            x: LIMIT,
-            y: LIMIT,
-            z: LIMIT,
-        })
-        .all()
+    direction.cmplt(LIMIT_DEVC3).all()
 }
 
 fn reflect(direction: DVec3, normal: DVec3) -> DVec3 {
