@@ -34,6 +34,7 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                     center,
                     radius: 0.2,
                     material: Material::Lambert(albedo),
+                    velocity: DVec3::ZERO
                 }
             } else if choose_mat < 5.0 {
                 //metal
@@ -44,6 +45,7 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                         center / (BALL_ITER as f64),
                         center.length_squared().recip(),
                     ),
+                    velocity: DVec3::ZERO
                 }
             } else {
                 //glass
@@ -51,6 +53,7 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                     center,
                     radius: 0.2,
                     material: Material::Dielectric(1.5),
+                    velocity: DVec3::ZERO
                 }
             }
         })
@@ -63,21 +66,25 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                 },
                 radius: 1000.0,
                 material: MATERIAL_GROUND,
+                velocity: DVec3::ZERO
             },
             Sphere {
                 center: DVec3::new(0.0, 1.0, 0.0),
                 radius: 1.0,
                 material: Material::Dielectric(1.5),
+            velocity: DVec3::ZERO
             },
             Sphere {
                 center: DVec3::new(-4.0, 1.0, 0.0),
                 radius: 1.0,
                 material: Material::Lambert(DVec3::new(0.4, 0.2, 0.1)),
+            velocity: DVec3::ZERO
             },
             Sphere {
                 center: DVec3::new(4.0, 1.0, 0.0),
                 radius: 1.0,
                 material: Material::Metal(DVec3::new(0.7, 0.6, 0.5), 0.0),
+            velocity: DVec3::ZERO
             },
         ])
         .map(RayHittableEnum::Sphere)

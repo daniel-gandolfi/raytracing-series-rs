@@ -1,8 +1,8 @@
 use crate::camera::Camera;
 use crate::material::Material;
+use crate::rng::get_rng;
 use glam::DVec3;
-use rand::rngs::ThreadRng;
-use rand::thread_rng;
+use rand::rngs::SmallRng;
 use rand::Rng;
 use rayon::prelude::*;
 use std::ops::Range;
@@ -11,6 +11,7 @@ use std::ops::Range;
 pub struct Ray {
     pub origin: DVec3,
     pub direction: DVec3,
+    pub time: f32
 }
 impl Ray {
     pub fn at(&self, t: f64) -> DVec3 {
@@ -42,7 +43,7 @@ impl RayHittableEnum {
         }
     }
 }
-fn random_vec3_clamp(rng: &mut ThreadRng, min: f64, max: f64) -> DVec3 {
+fn random_vec3_clamp(rng: &mut SmallRng, min: f64, max: f64) -> DVec3 {
     DVec3::new(
         rng.gen_range(min..max),
         rng.gen_range(min..max),
@@ -50,9 +51,8 @@ fn random_vec3_clamp(rng: &mut ThreadRng, min: f64, max: f64) -> DVec3 {
     )
 }
 fn random_in_unit_sphere() -> DVec3 {
-    let mut rng = thread_rng();
     loop {
-        let random_vec = random_vec3_clamp(&mut rng, -1.0, 1.0);
+        let random_vec = random_vec3_clamp(&mut crate::rng::get_rng(), -1.0, 1.0);
         if random_vec.length_squared() < 1.0 {
             return random_vec;
         }
@@ -72,7 +72,7 @@ fn random_on_hemisphere(hit_normal: &DVec3) -> DVec3 {
 }
 
 fn random_in_unit_disk() -> DVec3 {
-    let mut rng = thread_rng();
+    let mut rng = get_rng();
     loop {
         let p = DVec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
         if p.length_squared() < 1.0 {
@@ -113,7 +113,7 @@ pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<RayHittableEnum>) -> DV
 }
 
 fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
-    let mut rng = thread_rng();
+    let mut rng = get_rng();
     let px = rng.gen_range(-0.5..0.5);
     let py = rng.gen_range(-0.5..0.5);
     px * pixel_delta_u + py * pixel_delta_v
@@ -137,11 +137,12 @@ pub fn create_rays(
     let camera_height = camera.height as u32;
     let defocus_angle = camera.defocus_angle();
 
+    let time0 = camera.open_time;
+    let time1 = camera.close_time;
     let camera_position = camera.position;
     let defocus_disk_u = camera.defocus_disk_u();
     let defocus_disk_v = camera.defocus_disk_v();
     
-
     (0..(camera_height * camera_width))
         .into_par_iter()
         .map(move |compound_width_height| {
@@ -151,6 +152,7 @@ pub fn create_rays(
             let pixel_center =
                 pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
 
+            let mut rng = get_rng();
             (0..samples_per_square).map(move |_| {
                 let ray_origin = if defocus_angle <= 0.0 {
                     camera_position
@@ -163,6 +165,7 @@ pub fn create_rays(
                 Ray {
                     origin: ray_origin,
                     direction: ray_direction,
+                    time: rng.gen_range(time0..time1)
                 }
             })
         })

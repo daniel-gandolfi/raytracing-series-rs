@@ -7,6 +7,7 @@ pub struct Sphere {
     pub center: DVec3,
     pub radius: f64,
     pub material: Material,
+    pub velocity: DVec3
 }
 
 impl Sphere {
@@ -14,8 +15,11 @@ impl Sphere {
         &self.material
     }
 
+    fn center(&self, time: f32) -> DVec3 {
+        return self.velocity.mul_add(DVec3::splat(f64::from(time)), self.center)
+    }
     pub fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord> {
-        let center = self.center;
+        let center = self.center(ray.time);
         let oc = ray.origin - center;
         let half_b = oc.dot(ray.direction);
 

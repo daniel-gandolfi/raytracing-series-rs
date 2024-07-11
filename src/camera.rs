@@ -6,6 +6,9 @@ pub struct Camera {
     pub height: u16,
     pub position: DVec3,
 
+    pub open_time: f32,
+    pub close_time: f32,
+
     fov: f32,
     viewport_height: f64,
     viewport_width: f64,
@@ -26,8 +29,10 @@ impl Camera {
         image_width: u16,
         fov: f32,
         aspect_ratio: f64,
-        defocus_angle: f64,
+        aperture: f64,
         focus_dist: f64,
+        open_time: f32,
+        close_time: f32
     ) -> Camera {
         let height: u16 = (image_width as f64 / aspect_ratio) as u16;
         let theta = (fov as f64).to_radians();
@@ -55,11 +60,13 @@ impl Camera {
         let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
         // Calculate the camera defocus disk basis vectors.
-        let defocus_radius = focus_dist * (defocus_angle / 2.0).to_radians().tan();
+        let defocus_radius = focus_dist * (aperture / 2.0).to_radians().tan();
         let defocus_disk_u = u * defocus_radius;
         let defocus_disk_v = v * defocus_radius;
 
         Camera {
+            open_time,
+            close_time,
             width: image_width,
             height,
             fov,
@@ -70,7 +77,7 @@ impl Camera {
             pixel_delta_v,
             viewport_upper_left,
             pixel_00_loc,
-            defocus_angle,
+            defocus_angle: aperture,
             defocus_disk_u,
             defocus_disk_v,
         }

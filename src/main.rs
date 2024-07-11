@@ -1,3 +1,4 @@
+#![feature(thread_local)]
 #![feature(iter_array_chunks)]
 #![feature(iter_collect_into)]
 #![feature(test)]
@@ -11,6 +12,7 @@ mod camera;
 mod material;
 mod ppm_renderer;
 mod ray;
+mod rng;
 mod shapes;
 mod world_creation;
 use crate::camera::Camera;
@@ -23,11 +25,22 @@ use rayon::prelude::*;
 fn create_camera() -> Camera {
     const WIDTH: u16 = 1200_u16;
 
-    const LOOKFROM :DVec3= DVec3::new(13.0, 2.0, 3.0);
-    const LOOKAT :DVec3= DVec3::new(0.0, 0.0, 0.0);
-    const VUP:DVec3 = DVec3::new(0.0, 1.0, 0.0);
+    const LOOKFROM: DVec3 = DVec3::new(13.0, 2.0, 3.0);
+    const LOOKAT: DVec3 = DVec3::new(0.0, 0.0, 0.0);
+    const VUP: DVec3 = DVec3::new(0.0, 1.0, 0.0);
     const FOV: f32 = 20.0;
-    Camera::new(LOOKFROM, LOOKAT, VUP, WIDTH, FOV, 16.0 / 9.0, 0.6, 10.0)
+    Camera::new(
+        LOOKFROM,
+        LOOKAT,
+        VUP,
+        WIDTH,
+        FOV,
+        16.0 / 9.0,
+        0.0,
+        10.0,
+        0.0,
+        1.0,
+    )
 }
 const SAMPLES_PER_PIXEL: usize = 500;
 const MAX_RAY_BOUNCES: u8 = 50;

@@ -52,6 +52,7 @@ impl Material {
                     } else {
                         scatter_direction
                     },
+                    time: ray.time
                 };
 
                 Some(MaterialCalc {
@@ -68,6 +69,7 @@ impl Material {
                     let scattered = Ray {
                         origin: hit.point,
                         direction: scatter_direction,
+                        time: ray.time
                     };
 
                     return Some(MaterialCalc {
@@ -102,6 +104,7 @@ impl Material {
                 let scattered = Ray {
                     origin: hit.point,
                     direction: rebounce_direction,
+                    time: ray.time
                 };
                 Some(MaterialCalc {
                     attenuation,
