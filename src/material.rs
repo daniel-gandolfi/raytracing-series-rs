@@ -2,6 +2,7 @@ use crate::ray::{random_unit_vector, HitRecord, Ray};
 use glam::DVec3;
 use rand::random;
 
+#[derive(Debug,Clone, PartialEq)]
 pub enum Material {
     Lambert(DVec3),
     Metal(DVec3, f64),

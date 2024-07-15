@@ -1,3 +1,4 @@
+use crate::bounding_box::{self, BVHNode, BoundingBoxWrapped};
 use crate::camera::Camera;
 use crate::material::Material;
 use crate::rng::get_rng;
@@ -11,7 +12,7 @@ use std::ops::Range;
 pub struct Ray {
     pub origin: DVec3,
     pub direction: DVec3,
-    pub time: f32
+    pub time: f32,
 }
 impl Ray {
     pub fn at(&self, t: f64) -> DVec3 {
@@ -19,27 +20,32 @@ impl Ray {
     }
 }
 
-pub struct HitRecord {
+pub struct HitRecord<'a> {
     pub point: DVec3,
     pub normal: DVec3,
     pub time: f64,
     pub front_face: bool,
+    pub material: Option<&'a Material>,
 }
 
+#[derive(Debug, Clone)]
 pub enum RayHittableEnum {
     Sphere(crate::shapes::Sphere),
 }
 
 impl RayHittableEnum {
-    pub const fn get_material(&self) -> &Material {
-        match self {
-            RayHittableEnum::Sphere(s) => s.get_material(),
-        }
-    }
-
-    fn hit(&self, ray: &Ray, range: Range<f64>) -> Option<HitRecord> {
+    pub fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<HitRecord> {
         match self {
             RayHittableEnum::Sphere(s) => s.hit(ray, range),
+        }
+    }
+    pub fn bounding_box(
+        &self,
+        shutter_open_time: f32,
+        shutter_close_time: f32,
+    ) -> Option<bounding_box::BoundingBox> {
+        match self {
+            RayHittableEnum::Sphere(s) => s.bounding_box(shutter_open_time, shutter_close_time),
         }
     }
 }
@@ -81,29 +87,25 @@ fn random_in_unit_disk() -> DVec3 {
     }
 }
 
-pub fn ray_color(ray: &Ray, max_bounces: u8, world: &Vec<RayHittableEnum>) -> DVec3 {
+pub fn ray_color(ray: &Ray, max_bounces: u8, world: &BVHNode) -> DVec3 {
+    let range = 0.001..(f64::INFINITY);
     world
-        .iter()
-        .rev()
-        .find_map(|obj| {
-            let range = 0.001..(f64::INFINITY);
+        .hit(ray, &range)
+        .and_then(|hit| {
+            hit.material
+                .and_then(|material| material.on_ray_hit(ray, &hit))
+                .map(|calc_hit_data| {
+                    let attenuation = calc_hit_data.attenuation;
+                    let rebounce = calc_hit_data.rebounce;
 
-            obj.hit(ray, range).and_then(|hit| {
-                obj.get_material()
-                    .on_ray_hit(ray, &hit)
-                    .map(|calc_hit_data| {
-                        let attenuation = calc_hit_data.attenuation;
-                        let rebounce = calc_hit_data.rebounce;
+                    // If we've exceeded the ray bounce limit, no more light is gathered.
+                    if max_bounces <= 1 || attenuation == DVec3::ZERO {
+                        return DVec3::ZERO;
+                    }
 
-                        // If we've exceeded the ray bounce limit, no more light is gathered.
-                        if max_bounces <= 1 || attenuation == DVec3::ZERO {
-                            return DVec3::ZERO;
-                        }
-
-                        attenuation * ray_color(&rebounce, max_bounces - 1, world)
-                    })
-                    .or(Some(DVec3::ZERO))
-            })
+                    attenuation * ray_color(&rebounce, max_bounces - 1, world)
+                })
+                .or(Some(DVec3::ZERO))
         })
         .unwrap_or_else(|| {
             let unit = ray.direction.normalize_or_zero();
@@ -119,17 +121,19 @@ fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
     px * pixel_delta_u + py * pixel_delta_v
 }
 
-fn defocus_disk_sample(camera_position: DVec3,defocus_disk_u: DVec3, defocus_disk_v:DVec3) -> DVec3 {
+fn defocus_disk_sample(
+    camera_position: DVec3,
+    defocus_disk_u: DVec3,
+    defocus_disk_v: DVec3,
+) -> DVec3 {
     let p = random_in_unit_disk();
-     camera_position + (p.x * defocus_disk_u) + (p.y *defocus_disk_v)
+    camera_position + (p.x * defocus_disk_u) + (p.y * defocus_disk_v)
 }
 
 pub fn create_rays(
     camera: &Camera,
     samples_per_square: usize,
 ) -> impl IndexedParallelIterator<Item = impl Iterator<Item = Ray>> {
-
-
     let pixel00_loc = camera.pixel_00_loc();
     let pixel_delta_u = camera.delta_pixel_u();
     let pixel_delta_v = camera.delta_pixel_v();
@@ -142,11 +146,10 @@ pub fn create_rays(
     let camera_position = camera.position;
     let defocus_disk_u = camera.defocus_disk_u();
     let defocus_disk_v = camera.defocus_disk_v();
-    
+
     (0..(camera_height * camera_width))
         .into_par_iter()
         .map(move |compound_width_height| {
-
             let j = compound_width_height / camera_width;
             let i = compound_width_height % camera_width;
             let pixel_center =
@@ -165,7 +168,7 @@ pub fn create_rays(
                 Ray {
                     origin: ray_origin,
                     direction: ray_direction,
-                    time: rng.gen_range(time0..time1)
+                    time: rng.gen_range(time0..time1),
                 }
             })
         })

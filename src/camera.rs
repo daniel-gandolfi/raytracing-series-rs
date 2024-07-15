@@ -9,7 +9,6 @@ pub struct Camera {
     pub open_time: f32,
     pub close_time: f32,
 
-    fov: f32,
     viewport_height: f64,
     viewport_width: f64,
     pixel_delta_u: DVec3,
@@ -31,8 +30,8 @@ impl Camera {
         aspect_ratio: f64,
         aperture: f64,
         focus_dist: f64,
-        open_time: f32,
-        close_time: f32
+        shutter_open_time: f32,
+        shutter_close_time: f32,
     ) -> Camera {
         let height: u16 = (image_width as f64 / aspect_ratio) as u16;
         let theta = (fov as f64).to_radians();
@@ -65,11 +64,10 @@ impl Camera {
         let defocus_disk_v = v * defocus_radius;
 
         Camera {
-            open_time,
-            close_time,
+            open_time: shutter_open_time,
+            close_time: shutter_close_time,
             width: image_width,
             height,
-            fov,
             position: look_from,
             viewport_height,
             viewport_width,

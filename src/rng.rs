@@ -1,14 +1,12 @@
 use rand::{rngs::SmallRng, SeedableRng};
 
+static mut RNG: Option<SmallRng> = None;
 
-
-static mut rng : Option<SmallRng> = None;
-
-pub fn get_rng() -> &'static mut SmallRng{
+pub fn get_rng() -> &'static mut SmallRng {
     unsafe {
-        if rng.is_none() {
-            rng = Some(SmallRng::seed_from_u64(1));
+        if RNG.is_none() {
+            RNG = Some(SmallRng::seed_from_u64(1));
         }
-        rng.as_mut().unwrap()
+        RNG.as_mut().unwrap()
     }
 }
