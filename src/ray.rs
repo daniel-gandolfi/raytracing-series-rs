@@ -3,6 +3,7 @@ use crate::camera::Camera;
 use crate::material::Material;
 use crate::rng::get_rng;
 use glam::DVec3;
+use itertools::Itertools;
 use rand::rngs::SmallRng;
 use rand::Rng;
 use rayon::prelude::*;
@@ -78,7 +79,7 @@ fn random_on_hemisphere(hit_normal: &DVec3) -> DVec3 {
 }
 
 fn random_in_unit_disk() -> DVec3 {
-    let mut rng = get_rng();
+    let rng = get_rng();
     loop {
         let p = DVec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
         if p.length_squared() < 1.0 {
@@ -115,7 +116,7 @@ pub fn ray_color(ray: &Ray, max_bounces: u8, world: &BVHNode) -> DVec3 {
 }
 
 fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
-    let mut rng = get_rng();
+    let rng = get_rng();
     let px = rng.gen_range(-0.5..0.5);
     let py = rng.gen_range(-0.5..0.5);
     px * pixel_delta_u + py * pixel_delta_v
@@ -155,7 +156,6 @@ pub fn create_rays(
             let pixel_center =
                 pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
 
-            let mut rng = get_rng();
             (0..samples_per_square).map(move |_| {
                 let ray_origin = if defocus_angle <= 0.0 {
                     camera_position
@@ -168,7 +168,7 @@ pub fn create_rays(
                 Ray {
                     origin: ray_origin,
                     direction: ray_direction,
-                    time: rng.gen_range(time0..time1),
+                    time: get_rng().gen_range(time0..time1),
                 }
             })
         })

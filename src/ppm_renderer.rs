@@ -1,6 +1,5 @@
 use std::io::Write;
 use std::sync::mpsc::SyncSender;
-use std::thread::{self, JoinHandle};
 use std::{fs::File, sync::mpsc::Receiver};
 
 use crate::ipc::{ClientCommands, MainCommands};
@@ -26,7 +25,7 @@ impl PpmImageRenderer {
         client_rx: Receiver<ClientCommands>,
     ) {
         main_tx
-            .send(MainCommands::RECALC)
+            .send(MainCommands::Recalc)
             .expect("could not send recalc command in ppm renderer");
         loop {
             let command_res = client_rx.try_recv();
@@ -34,7 +33,7 @@ impl PpmImageRenderer {
             if command_res.is_ok() {
                 println!("client received command ");
                 match command_res.unwrap() {
-                    ClientCommands::REDRAW(vec) => {
+                    ClientCommands::Redraw(vec) => {
                         let width = self.width;
                         let height = self.height;
                         let mut buf_writer = std::io::BufWriter::with_capacity(1024, &self.file);
@@ -48,6 +47,9 @@ impl PpmImageRenderer {
                                 (color >> 8 & 255) as u8
                             );
                         }
+                        return;
+                    }
+                    ClientCommands::RedrawPixel(_) => {
                         return;
                     }
                 }

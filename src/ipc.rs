@@ -1,6 +1,7 @@
 pub enum MainCommands {
-    RECALC,
+    Recalc,
 }
 pub enum ClientCommands {
-    REDRAW(Vec<u32>),
+    Redraw(Vec<u32>),
+    RedrawPixel((usize, u32)),
 }

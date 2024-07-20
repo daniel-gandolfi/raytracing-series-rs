@@ -13,7 +13,7 @@ const MATERIAL_GROUND: Material = Material::Lambert(DVec3 {
 });
 
 fn random_color(range: std::ops::Range<f64>) -> DVec3 {
-    let mut random = get_rng();
+    let  random = get_rng();
     DVec3::new(
         random.gen_range(range.clone()),
         random.gen_range(range.clone()),
