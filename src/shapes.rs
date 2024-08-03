@@ -1,22 +1,22 @@
 use crate::bounding_box::{BoundingBox, BoundingBoxWrapped};
 use crate::material::Material;
 use crate::ray::{HitRecord, Ray};
-use glam::DVec3;
+use glam::Vec3A;
 use std::ops::Range;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Sphere {
-    pub center: DVec3,
-    pub radius: f64,
     pub material: Material,
-    pub velocity: DVec3
+    pub center: Vec3A,
+    pub velocity: Vec3A,
+    pub radius: f32,
 }
 
 impl Sphere {
-    fn center(&self, time: f32) -> DVec3 {
-        return self.velocity.mul_add(DVec3::splat(f64::from(time)), self.center)
+    fn center(&self, time: f32) -> Vec3A {
+        return self.velocity.mul_add(Vec3A::splat(time), self.center)
     }
-    pub fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<HitRecord> {
+    pub fn hit(&self, ray: &Ray, range: &Range<f32>) -> Option<HitRecord> {
         let center = self.center(ray.time);
         let oc = ray.origin - center;
         let half_b = oc.dot(ray.direction);
@@ -57,30 +57,40 @@ impl Sphere {
                 point: hit_point,
                 normal: if front_face { hit_normal } else { -hit_normal },
                 front_face,
-                material: Some(&self.material)
+                material: Some(&self.material),
             })
         }
     }
 }
 
-
 impl BoundingBoxWrapped for Sphere {
-    fn bounding_box(&self, shutter_open_time: f32, shutter_close_time: f32) -> Option<crate::bounding_box::BoundingBox> {
-        let radius = DVec3::splat(self.radius);
-        let open_position = (
-            self.center - radius,
-            self.center + radius,
-        );
-        let center_on_shutter_close = self.center +(
-            self.velocity * (shutter_close_time + shutter_open_time) as f64
+    fn bounding_box(
+        &self,
+        shutter_open_time: f32,
+        shutter_close_time: f32,
+    ) -> Option<crate::bounding_box::BoundingBox> {
+        let radius = Vec3A::splat(self.radius);
+        let open_position = (self.center - radius, self.center + radius);
+        let center_on_shutter_close = self.velocity.mul_add(
+            Vec3A::splat(shutter_close_time - shutter_open_time),
+            self.center,
         );
         let close_position = (
             center_on_shutter_close - radius,
             center_on_shutter_close + radius,
         );
+
         Some(BoundingBox::new(
-            open_position.0.min(open_position.1).min(close_position.0).min(close_position.1),
-             open_position.0.max(open_position.1).max(close_position.0).max(close_position.1),
+            open_position
+                .0
+                .min(open_position.1)
+                .min(close_position.0)
+                .min(close_position.1),
+            open_position
+                .0
+                .max(open_position.1)
+                .max(close_position.0)
+                .max(close_position.1),
         ))
     }
 }

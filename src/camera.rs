@@ -1,44 +1,44 @@
-use glam::DVec3;
+use glam::Vec3A;
 
 #[derive(Default, Debug)]
 pub struct Camera {
     pub width: u16,
     pub height: u16,
-    pub position: DVec3,
+    pub position: Vec3A,
 
     pub open_time: f32,
     pub close_time: f32,
 
-    viewport_height: f64,
-    viewport_width: f64,
-    pixel_delta_u: DVec3,
-    pixel_delta_v: DVec3,
-    viewport_upper_left: DVec3,
-    pixel_00_loc: DVec3,
-    defocus_angle: f64,    // Defocus disk horizontal radius
-    defocus_disk_u: DVec3, // Defocus disk horizontal radius
-    defocus_disk_v: DVec3, // Defocus disk vertical radius
+    viewport_height: f32,
+    viewport_width: f32,
+    pixel_delta_u: Vec3A,
+    pixel_delta_v: Vec3A,
+    viewport_upper_left: Vec3A,
+    pixel_00_loc: Vec3A,
+    defocus_angle: f32,    // Defocus disk horizontal radius
+    defocus_disk_u: Vec3A, // Defocus disk horizontal radius
+    defocus_disk_v: Vec3A, // Defocus disk vertical radius
 }
 
 impl Camera {
     pub fn new(
-        look_from: DVec3,
-        look_at: DVec3,
-        vup: DVec3,
+        look_from: Vec3A,
+        look_at: Vec3A,
+        vup: Vec3A,
         image_width: u16,
         fov: f32,
         aspect_ratio: f64,
-        aperture: f64,
-        focus_dist: f64,
+        aperture: f32,
+        focus_dist: f32,
         shutter_open_time: f32,
         shutter_close_time: f32,
     ) -> Camera {
         let height: u16 = (image_width as f64 / aspect_ratio) as u16;
-        let theta = (fov as f64).to_radians();
+        let theta = fov.to_radians();
         let h = (theta / 2.0).tan();
 
         let viewport_height = 2.0 * h * focus_dist;
-        let viewport_width = viewport_height * (image_width as f64 / height as f64);
+        let viewport_width = viewport_height * (image_width as f32 / height as f32);
 
         // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
         let w = (look_from - look_at).normalize();
@@ -51,8 +51,8 @@ impl Camera {
 
         let height = if height < 1 { 1 } else { height };
         // Calculate the horizontal and vertical delta vectors from pixel to pixel.
-        let pixel_delta_u = viewport_u / DVec3::splat(image_width as f64);
-        let pixel_delta_v = viewport_v / DVec3::splat(height as f64);
+        let pixel_delta_u = viewport_u / Vec3A::splat(image_width as f32);
+        let pixel_delta_v = viewport_v / Vec3A::splat(height as f32);
 
         let position = look_from;
         let viewport_upper_left = position - (focus_dist * w) - viewport_u / 2.0 - viewport_v / 2.0;
@@ -83,31 +83,31 @@ impl Camera {
     pub const fn aspect_ratio(&self) -> f32 {
         self.width as f32 / self.height as f32
     }
-    pub const fn viewport_height(&self) -> f64 {
+    pub const fn viewport_height(&self) -> f32 {
         self.viewport_height
     }
-    pub const fn viewport_width(&self) -> f64 {
+    pub const fn viewport_width(&self) -> f32 {
         self.viewport_width
     }
-    pub const fn delta_pixel_u(&self) -> DVec3 {
+    pub const fn delta_pixel_u(&self) -> Vec3A {
         self.pixel_delta_u
     }
-    pub const fn delta_pixel_v(&self) -> DVec3 {
+    pub const fn delta_pixel_v(&self) -> Vec3A {
         self.pixel_delta_v
     }
-    pub const fn viewport_upper_left(&self) -> DVec3 {
+    pub const fn viewport_upper_left(&self) -> Vec3A {
         self.viewport_upper_left
     }
-    pub const fn pixel_00_loc(&self) -> DVec3 {
+    pub const fn pixel_00_loc(&self) -> Vec3A {
         self.pixel_00_loc
     }
-    pub const fn defocus_angle(&self) -> f64 {
+    pub const fn defocus_angle(&self) -> f32 {
         self.defocus_angle
     }
-    pub const fn defocus_disk_u(&self) -> DVec3 {
+    pub const fn defocus_disk_u(&self) -> Vec3A {
         self.defocus_disk_u
     }
-    pub const fn defocus_disk_v(&self) -> DVec3 {
+    pub const fn defocus_disk_v(&self) -> Vec3A {
         // Defocus disk vertical radius
         self.defocus_disk_v
     }

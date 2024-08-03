@@ -1,28 +1,24 @@
-use glam::DVec3;
+use glam::Vec3A;
 use itertools::Itertools;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
 use crate::{
     camera::Camera, material::Material, ray::RayHittableEnum, rng::get_rng, shapes::Sphere,
 };
 
-const MATERIAL_GROUND: Material = Material::Lambert(DVec3 {
-    x: 0.5,
-    y: 0.5,
-    z: 0.5,
-});
+const MATERIAL_GROUND: Material = Material::Lambert(Vec3A::splat(0.5));
 
-fn random_color(range: std::ops::Range<f64>) -> DVec3 {
-    let  random = get_rng();
-    DVec3::new(
+fn random_color(range: std::ops::Range<f32>) -> Vec3A {
+    let random = get_rng();
+    Vec3A::new(
         random.gen_range(range.clone()),
         random.gen_range(range.clone()),
         random.gen_range(range),
     )
 }
 
-pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
-    const BALL_ITER: u16 = 11;
+pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
+    const BALL_ITER: u16 = 8;
     const DYN_BALL_COUNT: u16 = BALL_ITER * 2 * BALL_ITER * 2;
     const STATIC_BALL_COUNT: u16 = 4;
     const TOTAL_BALL_COUNT: u16 = STATIC_BALL_COUNT + DYN_BALL_COUNT;
@@ -31,17 +27,17 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
     let ball_centers_iter = (-(BALL_ITER as i32)..(BALL_ITER as i32))
         .cartesian_product(-(BALL_ITER as i32)..(BALL_ITER as i32))
         .map(|(a, b)| {
-            DVec3::new(
-                a as f64 + 0.9 * rng.gen::<f64>(),
+            Vec3A::new(
+                a as f32 + 0.9 * rng.gen::<f32>(),
                 0.2,
-                b as f64 + 0.9 * rng.gen::<f64>(),
+                b as f32 + 0.9 * rng.gen::<f32>(),
             )
         });
-    let mut rng = rand::rngs::SmallRng::from_entropy();
+    let rng = get_rng();
     let main_balls = ball_centers_iter
-        .filter(|center| (*center - DVec3::new(4.0, 0.2, 0.0)).length() > 0.9)
+        .filter(|center| (*center - Vec3A::new(4.0, 0.2, 0.0)).length() > 0.9)
         .map(|center| {
-            let choose_mat = rand::random::<f32>();
+            let choose_mat = rng.gen::<f32>();
             if choose_mat < 0.8 {
                 //diffuse
                 let albedo = random_color(0.0..1.0) * random_color(0.0..1.0);
@@ -50,11 +46,11 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                     center,
                     radius: 0.2,
                     material: Material::Lambert(albedo),
-                    velocity: DVec3 {
-                        x: rng.gen::<f64>() * rng.gen::<f64>(),
-                        y: rng.gen::<f64>() * rng.gen::<f64>(),
-                        z: rng.gen::<f64>() * rng.gen::<f64>(),
-                    },
+                    velocity: Vec3A::new(
+                        rng.gen::<f32>() * rng.gen::<f32>(),
+                        rng.gen::<f32>() * rng.gen::<f32>(),
+                        rng.gen::<f32>() * rng.gen::<f32>(),
+                    ),
                 }
             } else if choose_mat < 0.95 {
                 //metal
@@ -62,11 +58,11 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                     center,
                     radius: 0.2,
                     material: Material::Metal(random_color(0.5..1.0), rng.gen_range(0.0..0.5)),
-                    velocity: DVec3 {
-                        x: (1.0 + rng.gen::<f64>()) / 2.0,
-                        y: (1.0 + rng.gen::<f64>()) / 2.0,
-                        z: (1.0 + rng.gen::<f64>()) / 2.0,
-                    },
+                    velocity: Vec3A::new(
+                        (1.0 + rng.gen::<f32>()) / 2.0,
+                        (1.0 + rng.gen::<f32>()) / 2.0,
+                        (1.0 + rng.gen::<f32>()) / 2.0,
+                    ),
                 }
             } else {
                 //glass
@@ -74,40 +70,36 @@ pub fn create_world(camera: &Camera) -> Vec<RayHittableEnum> {
                     center,
                     radius: 0.2,
                     material: Material::Dielectric(1.5),
-                    velocity: DVec3::ZERO,
+                    velocity: Vec3A::ZERO,
                 }
             }
         });
     let spheres_iter = vec![Sphere {
-        center: DVec3 {
-            x: 0.0,
-            y: -1000.0,
-            z: 0.0,
-        },
+        center: Vec3A::new(0.0, -1000.0, 0.0),
         radius: 1000.0,
         material: MATERIAL_GROUND,
-        velocity: DVec3::ZERO,
+        velocity: Vec3A::ZERO,
     }]
     .into_iter()
     .chain(main_balls)
     .chain(vec![
         Sphere {
-            center: DVec3::new(0.0, 1.0, 0.0),
+            center: Vec3A::new(0.0, 1.0, 0.0),
             radius: 1.0,
             material: Material::Dielectric(1.5),
-            velocity: DVec3::ZERO,
+            velocity: Vec3A::ZERO,
         },
         Sphere {
-            center: DVec3::new(-4.0, 1.0, 0.0),
+            center: Vec3A::new(-4.0, 1.0, 0.0),
             radius: 1.0,
-            material: Material::Lambert(DVec3::new(0.4, 0.2, 0.1)),
-            velocity: DVec3::ZERO,
+            material: Material::Lambert(Vec3A::new(0.4, 0.2, 0.1)),
+            velocity: Vec3A::ZERO,
         },
         Sphere {
-            center: DVec3::new(4.0, 1.0, 0.0),
+            center: Vec3A::new(4.0, 1.0, 0.0),
             radius: 1.0,
-            material: Material::Metal(DVec3::new(0.7, 0.6, 0.5), 0.0),
-            velocity: DVec3::ZERO,
+            material: Material::Metal(Vec3A::new(0.7, 0.6, 0.5), 0.0),
+            velocity: Vec3A::ZERO,
         },
     ])
     .map(RayHittableEnum::Sphere);

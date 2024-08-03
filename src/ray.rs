@@ -1,9 +1,8 @@
-use crate::bounding_box::{self, BVHNode, BoundingBoxWrapped};
+use crate::bounding_box::{self, BoundingBoxWrapped};
 use crate::camera::Camera;
 use crate::material::Material;
 use crate::rng::get_rng;
-use glam::DVec3;
-use itertools::Itertools;
+use glam::{f32, Vec3A};
 use rand::rngs::SmallRng;
 use rand::Rng;
 use rayon::prelude::*;
@@ -11,20 +10,20 @@ use std::ops::Range;
 
 #[derive(Default, Debug)]
 pub struct Ray {
-    pub origin: DVec3,
-    pub direction: DVec3,
+    pub origin: Vec3A,
+    pub direction: Vec3A,
     pub time: f32,
 }
 impl Ray {
-    pub fn at(&self, t: f64) -> DVec3 {
-        self.direction.mul_add(DVec3::splat(t), self.origin)
+    pub fn at(&self, t: f32) -> Vec3A {
+        self.direction.mul_add(Vec3A::splat(t), self.origin)
     }
 }
 
 pub struct HitRecord<'a> {
-    pub point: DVec3,
-    pub normal: DVec3,
-    pub time: f64,
+    pub point: Vec3A,
+    pub normal: Vec3A,
+    pub time: f32,
     pub front_face: bool,
     pub material: Option<&'a Material>,
 }
@@ -35,7 +34,7 @@ pub enum RayHittableEnum {
 }
 
 impl RayHittableEnum {
-    pub fn hit(&self, ray: &Ray, range: &Range<f64>) -> Option<HitRecord> {
+    pub fn hit(&self, ray: &Ray, range: &Range<f32>) -> Option<HitRecord> {
         match self {
             RayHittableEnum::Sphere(s) => s.hit(ray, range),
         }
@@ -50,25 +49,27 @@ impl RayHittableEnum {
         }
     }
 }
-fn random_vec3_clamp(rng: &mut SmallRng, min: f64, max: f64) -> DVec3 {
-    DVec3::new(
+
+fn random_vec3_clamp(rng: &mut SmallRng, min: f32, max: f32) -> Vec3A {
+    Vec3A::new(
         rng.gen_range(min..max),
         rng.gen_range(min..max),
         rng.gen_range(min..max),
     )
 }
-fn random_in_unit_sphere() -> DVec3 {
+
+fn random_in_unit_sphere() -> Vec3A {
     loop {
-        let random_vec = random_vec3_clamp(&mut crate::rng::get_rng(), -1.0, 1.0);
+        let random_vec = random_vec3_clamp(crate::rng::get_rng(), -1.0, 1.0);
         if random_vec.length_squared() < 1.0 {
             return random_vec;
         }
     }
 }
-pub fn random_unit_vector() -> DVec3 {
+pub fn random_unit_vector() -> Vec3A {
     random_in_unit_sphere().normalize()
 }
-fn random_on_hemisphere(hit_normal: &DVec3) -> DVec3 {
+fn random_on_hemisphere(hit_normal: &Vec3A) -> Vec3A {
     let on_unit_sphere = random_unit_vector();
     if hit_normal.dot(on_unit_sphere) > 0.0 {
         // In the same hemisphere as the normal
@@ -78,44 +79,17 @@ fn random_on_hemisphere(hit_normal: &DVec3) -> DVec3 {
     }
 }
 
-fn random_in_unit_disk() -> DVec3 {
+fn random_in_unit_disk() -> Vec3A {
     let rng = get_rng();
     loop {
-        let p = DVec3::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
+        let p = Vec3A::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
         if p.length_squared() < 1.0 {
             return p;
         }
     }
 }
 
-pub fn ray_color(ray: &Ray, max_bounces: u8, world: &BVHNode) -> DVec3 {
-    let range = 0.001..(f64::INFINITY);
-    world
-        .hit(ray, &range)
-        .and_then(|hit| {
-            hit.material
-                .and_then(|material| material.on_ray_hit(ray, &hit))
-                .map(|calc_hit_data| {
-                    let attenuation = calc_hit_data.attenuation;
-                    let rebounce = calc_hit_data.rebounce;
-
-                    // If we've exceeded the ray bounce limit, no more light is gathered.
-                    if max_bounces <= 1 || attenuation == DVec3::ZERO {
-                        return DVec3::ZERO;
-                    }
-
-                    attenuation * ray_color(&rebounce, max_bounces - 1, world)
-                })
-                .or(Some(DVec3::ZERO))
-        })
-        .unwrap_or_else(|| {
-            let unit = ray.direction.normalize_or_zero();
-            let a = 0.5 * (unit.y + 1.0);
-            (1.0 - a) * DVec3::ONE + a * DVec3::new(0.5, 0.7, 1.0)
-        })
-}
-
-fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
+fn pixel_sample_square(pixel_delta_u: Vec3A, pixel_delta_v: Vec3A) -> Vec3A {
     let rng = get_rng();
     let px = rng.gen_range(-0.5..0.5);
     let py = rng.gen_range(-0.5..0.5);
@@ -123,18 +97,17 @@ fn pixel_sample_square(pixel_delta_u: DVec3, pixel_delta_v: DVec3) -> DVec3 {
 }
 
 fn defocus_disk_sample(
-    camera_position: DVec3,
-    defocus_disk_u: DVec3,
-    defocus_disk_v: DVec3,
-) -> DVec3 {
+    camera_position: Vec3A,
+    defocus_disk_u: Vec3A,
+    defocus_disk_v: Vec3A,
+) -> Vec3A {
     let p = random_in_unit_disk();
     camera_position + (p.x * defocus_disk_u) + (p.y * defocus_disk_v)
 }
 
-pub fn create_rays(
+pub fn create_rays<const SAMPLES_PER_SQUARE: usize>(
     camera: &Camera,
-    samples_per_square: usize,
-) -> impl IndexedParallelIterator<Item = impl Iterator<Item = Ray>> {
+) -> impl IndexedParallelIterator<Item = (u32, [Ray; SAMPLES_PER_SQUARE])> {
     let pixel00_loc = camera.pixel_00_loc();
     let pixel_delta_u = camera.delta_pixel_u();
     let pixel_delta_v = camera.delta_pixel_v();
@@ -154,9 +127,11 @@ pub fn create_rays(
             let j = compound_width_height / camera_width;
             let i = compound_width_height % camera_width;
             let pixel_center =
-                pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
+                pixel00_loc + (i as f32 * pixel_delta_u) + (j as f32 * pixel_delta_v);
 
-            (0..samples_per_square).map(move |_| {
+            assert!(SAMPLES_PER_SQUARE % 4 == 0);
+
+            let rays: [Ray; SAMPLES_PER_SQUARE] = core::array::from_fn(|_| {
                 let ray_origin = if defocus_angle <= 0.0 {
                     camera_position
                 } else {
@@ -170,6 +145,7 @@ pub fn create_rays(
                     direction: ray_direction,
                     time: get_rng().gen_range(time0..time1),
                 }
-            })
+            });
+            (compound_width_height, rays)
         })
 }

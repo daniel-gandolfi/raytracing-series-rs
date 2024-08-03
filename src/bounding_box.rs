@@ -1,137 +1,133 @@
-use glam::DVec3;
+use glam::Vec3A;
 
 use crate::ray::{HitRecord, Ray, RayHittableEnum};
 
 pub trait BoundingBoxWrapped {
-    fn bounding_box(
-        self: &Self,
-        shutter_open_time: f32,
-        shutter_close_time: f32,
-    ) -> Option<BoundingBox>;
+    fn bounding_box(&self, shutter_open_time: f32, shutter_close_time: f32) -> Option<BoundingBox>;
 }
 
 #[derive(PartialEq, Debug, Clone, Copy, derive_more::Constructor)]
 pub struct BoundingBox {
-    pub min: DVec3,
-    pub max: DVec3,
+    pub min: Vec3A,
+    pub max: Vec3A,
 }
 
 impl BoundingBox {
-    pub fn hit(&self, ray: &Ray, tmin: f64, tmax: f64) -> bool {
+    pub fn hit(&self, ray: &Ray, tmin: f32, tmax: f32) -> bool {
         let a_intersection = (self.min - ray.origin) / ray.direction;
         let b_intersection = (self.max - ray.origin) / ray.direction;
 
         let min_intersection = a_intersection.min(b_intersection);
         let max_intersection = a_intersection.max(b_intersection);
 
-        let int_or_max_limit = max_intersection.max(DVec3::splat(tmax));
-        let int_or_min_limit = min_intersection.min(DVec3::splat(tmin));
+        let int_or_max_limit = max_intersection.max(Vec3A::splat(tmax));
+        let int_or_min_limit = min_intersection.min(Vec3A::splat(tmin));
 
         return int_or_max_limit.cmpgt(int_or_min_limit).all();
     }
 }
-struct BVHLeafData<'a> {
-    bb_cache: Option<BoundingBox>,
-    children: &'a [RayHittableEnum],
-}
 
-struct BVHNodeData<'a> {
-    bb_cache: Option<BoundingBox>,
-    children: Box<[BVHNode<'a>; 2]>,
+#[derive(Clone)]
+pub enum BVHChildren<'a, const CHILD_ARR_LEN: usize> {
+    RayHittables(&'a [RayHittableEnum]),
+    Nodes([Box<BVHNode<'a, CHILD_ARR_LEN>>; 2]),
 }
-
-pub enum BVHNode<'a> {
-    Leaf(BVHLeafData<'a>),
-    Node(BVHNodeData<'a>),
+#[derive(Clone)]
+pub struct BVHNode<'a, const CHILD_ARR_LEN: usize> {
+    bb_cache: Option<BoundingBox>,
+    children: BVHChildren<'a, CHILD_ARR_LEN>,
 }
 
 pub fn map_iterator_to_minmax_points(
     bounding_boxes: impl Iterator<Item = Option<BoundingBox>>,
-) -> (DVec3, DVec3) {
+) -> (Vec3A, Vec3A) {
     bounding_boxes
-        .filter(Option::is_some)
-        .map(Option::unwrap)
-        .flat_map(|bounding_box| [bounding_box.min, bounding_box.max] as [DVec3; 2])
-        .fold((DVec3::ZERO, DVec3::ZERO), |acc, border| {
+        .flatten()
+        .flat_map(|bounding_box| [bounding_box.min, bounding_box.max] as [Vec3A; 2])
+        .fold((Vec3A::ZERO, Vec3A::ZERO), |acc, border| {
             (acc.0.min(border), acc.1.max(border))
         })
 }
-impl BVHNode<'_> {
+impl<const CHILD_ARR_LEN: usize> BVHNode<'_, CHILD_ARR_LEN> {
     pub fn new(
         sorted_items: &[RayHittableEnum],
-        max_items_in_node: usize,
         shutter_open_time: f32,
         shutter_close_time: f32,
-    ) -> BVHNode {
-        if sorted_items.len() > max_items_in_node {
+    ) -> BVHNode<'_, CHILD_ARR_LEN> {
+        if sorted_items.len() > CHILD_ARR_LEN {
             let midpoint = sorted_items.len() / 2;
             let (left, right) = sorted_items.split_at(midpoint);
-            let children = Box::new([
-                BVHNode::new(
-                    left,
-                    max_items_in_node,
-                    shutter_open_time,
-                    shutter_close_time,
-                ),
-                BVHNode::new(
-                    right,
-                    max_items_in_node,
-                    shutter_open_time,
-                    shutter_close_time,
-                ),
-            ]);
-            return BVHNode::Node(BVHNodeData {
+            let children = [
+                Box::new(BVHNode::new(left, shutter_open_time, shutter_close_time)),
+                Box::new(BVHNode::new(right, shutter_open_time, shutter_close_time)),
+            ];
+            let mut node = BVHNode {
                 bb_cache: None,
-                children,
-            });
+                children: BVHChildren::Nodes(children),
+            };
+            node.bounding_box(shutter_open_time, shutter_close_time);
+            return node;
         } else {
-            return BVHNode::Leaf(BVHLeafData {
+            assert!(sorted_items.len() <= CHILD_ARR_LEN);
+            let mut node = BVHNode {
                 bb_cache: None,
-                children: sorted_items,
-            });
+                children: BVHChildren::RayHittables(sorted_items),
+            };
+            node.bounding_box(shutter_open_time, shutter_close_time);
+            return node;
         }
     }
-    pub fn hit(&self, ray: &Ray, range: &core::ops::Range<f64>) -> Option<HitRecord> {
-        match self {
-            BVHNode::Node(data) => {
-                let [left_node, right_node] = data.children.as_ref();
+    pub fn hit(&self, ray: &Ray, range: &core::ops::Range<f32>) -> Option<HitRecord> {
+        let bbox_hit = self
+            .bb_cache
+            .map(|bbox| bbox.hit(ray, range.start, range.end));
+
+        // None -> undeterministic/non-computable, theere is an unboundable object inside
+        // Some(true ) -> hit
+        // Some(false) -> no hit
+        let skip_children = matches!(bbox_hit, Some(false));
+
+        if skip_children {
+            return None;
+        }
+
+        match &self.children {
+            BVHChildren::Nodes(children) => {
+                let [left_node, right_node] = children;
+
                 left_node
                     .hit(ray, range)
                     .or_else(|| right_node.hit(ray, range))
             }
-            BVHNode::Leaf(data) => {
-                for i in 0..data.children.len() {
-                    let hit = data.children.get(i)?.hit(ray, range);
-                    if hit.is_some() {
-                        return hit;
-                    }
-                }
-                return None;
+            BVHChildren::RayHittables(children) => {
+                children.iter().find_map(|child| child.hit(ray, range))
             }
         }
     }
 }
-impl BVHNode<'_> {
+impl<const CHILDREN_ARR_LEN: usize> BVHNode<'_, CHILDREN_ARR_LEN> {
     fn bounding_box(
         &mut self,
         shutter_open_time: f32,
         shutter_close_time: f32,
     ) -> Option<BoundingBox> {
-        let cache = match self {
-            BVHNode::Leaf(data) => data.bb_cache,
-            BVHNode::Node(data) => data.bb_cache,
-        };
+        let cache = self.bb_cache;
         if cache.is_some() {
             return cache;
         }
-        let minmax = match self {
-            BVHNode::Leaf(data) => map_iterator_to_minmax_points(
-                data.children
-                    .iter()
-                    .map(|item| item.bounding_box(shutter_open_time, shutter_close_time)),
-            ),
-            BVHNode::Node(data) => map_iterator_to_minmax_points(
-                data.children
+
+        let children = &mut self.children;
+        let minmax = match children {
+            BVHChildren::RayHittables(children) => {
+                assert!(children.len() <= CHILDREN_ARR_LEN);
+                map_iterator_to_minmax_points(
+                    children
+                        .iter()
+                        .map(|item| item.bounding_box(shutter_open_time, shutter_close_time)),
+                )
+            }
+            BVHChildren::Nodes(children) => map_iterator_to_minmax_points(
+                children
                     .iter_mut()
                     .map(|item| item.bounding_box(shutter_open_time, shutter_close_time)),
             ),
@@ -141,15 +137,7 @@ impl BVHNode<'_> {
             min: minmax.0,
             max: minmax.1,
         });
-        return match self {
-            BVHNode::Leaf(data) => {
-                data.bb_cache = bb;
-                data.bb_cache
-            }
-            BVHNode::Node(data) => {
-                data.bb_cache = bb;
-                data.bb_cache
-            }
-        };
+        self.bb_cache = bb;
+        return self.bb_cache;
     }
 }

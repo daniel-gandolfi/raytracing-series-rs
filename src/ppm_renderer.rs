@@ -36,8 +36,9 @@ impl PpmImageRenderer {
                     ClientCommands::Redraw(vec) => {
                         let width = self.width;
                         let height = self.height;
-                        let mut buf_writer = std::io::BufWriter::with_capacity(1024, &self.file);
+                        let mut buf_writer = std::io::BufWriter::with_capacity(4096, &self.file);
                         write!(&mut buf_writer, "P3\n{width} {height}\n255\n");
+
                         for color in vec {
                             writeln!(
                                 &mut buf_writer,

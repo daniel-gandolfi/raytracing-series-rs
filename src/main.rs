@@ -1,3 +1,4 @@
+#![allow(clippy::needless_return)]
 #![feature(thread_local)]
 #![feature(iter_array_chunks)]
 #![feature(iter_collect_into)]
@@ -7,10 +8,8 @@
 extern crate test;
 
 use std::sync::mpsc::sync_channel;
-use std::thread;
 
-use bounding_box::BVHNode;
-use glam::DVec3;
+use glam::Vec3A;
 use indicatif::*;
 use ipc::{ClientCommands, MainCommands};
 mod bounding_box;
@@ -25,28 +24,28 @@ mod shapes;
 mod world_creation;
 use crate::camera::Camera;
 use crate::world_creation::heavy_rand_world::create_world;
-use ray::{create_rays, ray_color, RayHittableEnum};
+use ray::{create_rays, Ray, RayHittableEnum};
 use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
 
 const WIDTH: u16 = if cfg!(debug_assertions) {
-    600_u16
+    20_u16
 } else {
     1200_u16
 };
 const ASPECT_RATIO: f64 = 16.0 / 9.0;
-const HEIGHT: u16 = (WIDTH as f64 / ASPECT_RATIO as f64) as u16;
+const HEIGHT: u16 = (WIDTH as f64 / ASPECT_RATIO) as u16;
 const PIXEL_COUNT: usize = WIDTH as usize * HEIGHT as usize;
 fn create_camera(w: u16, ar: f64) -> Camera {
-    const LOOKFROM: DVec3 = DVec3::new(13.0, 2.0, 3.0);
-    const LOOKAT: DVec3 = DVec3::new(0.0, 0.0, 0.0);
-    const VUP: DVec3 = DVec3::new(0.0, 1.0, 0.0);
+    const LOOKFROM: Vec3A = Vec3A::new(13.0, 2.0, 3.0);
+    const LOOKAT: Vec3A = Vec3A::new(0.0, 0.0, 0.0);
+    const VUP: Vec3A = Vec3A::new(0.0, 1.0, 0.0);
     const FOV: f32 = 20.0;
     Camera::new(LOOKFROM, LOOKAT, VUP, w, FOV, ar, 0.0, 10.0, 0.0, 1.0)
 }
-const SAMPLES_PER_PIXEL: usize = if cfg!(debug_assertions) { 3 } else { 50 };
-const MAX_RAY_BOUNCES: u8 = if cfg!(debug_assertions) { 4 } else { 20 };
-const RAY_SAMPLE_SCALE_FACTOR: f64 = 1.0 / SAMPLES_PER_PIXEL as f64;
+const SAMPLES_PER_PIXEL: usize = if cfg!(debug_assertions) { 4 } else { 48 };
+const MAX_RAY_BOUNCES: u8 = if cfg!(debug_assertions) { 4 } else { 8 };
+const RAY_SAMPLE_SCALE_FACTOR: f32 = 1.0 / SAMPLES_PER_PIXEL as f32;
 
 fn prepare_world(camera: &Camera) -> Vec<RayHittableEnum> {
     let mut world = create_world(&camera);
@@ -88,6 +87,41 @@ impl Renderer {
         }
     }
 }
+
+#[inline]
+fn skybox_color(ray_direction: Vec3A) -> Vec3A {
+    let unit = ray_direction.normalize_or_zero();
+    let a = 0.5 * (unit.y + 1.0);
+    (1.0 - a) * 1.0 + a * Vec3A::new(0.5, 0.7, 1.0)
+}
+
+#[inline]
+pub fn ray_color<const BVH_CHILDREN_SIZE: usize>(
+    ray: &Ray,
+    max_bounces: u8,
+    world: &bounding_box::BVHNode<BVH_CHILDREN_SIZE>,
+) -> Vec3A {
+    const RANGE: std::ops::Range<f32> = 0.001..(f32::INFINITY);
+    world
+        .hit(ray, &RANGE)
+        .and_then(|hit| {
+            hit.material
+                .and_then(|material| material.on_ray_hit(ray, &hit))
+                .map(|calc_hit_data| {
+                    let attenuation = calc_hit_data.attenuation;
+                    let rebounce = calc_hit_data.rebounce;
+
+                    // If we've exceeded the ray bounce limit, no more light is gathered.
+                    if max_bounces <= 1 || attenuation == Vec3A::ZERO {
+                        return Vec3A::ZERO;
+                    }
+                    attenuation * ray_color(&rebounce, max_bounces - 1, world)
+                })
+                .or(Some(Vec3A::ZERO))
+        })
+        .unwrap_or_else(|| skybox_color(ray.direction.normalize_or_zero()))
+}
+
 fn main() -> std::io::Result<()> {
     const RENDERER: Renderer = Renderer::PixelWindow {
         partial_render: true,
@@ -95,59 +129,57 @@ fn main() -> std::io::Result<()> {
     let camera = create_camera(WIDTH, ASPECT_RATIO);
     let world = prepare_world(&camera);
     let (main_tx, main_rx) = sync_channel::<MainCommands>(4);
-    let (client_tx, client_rx) = sync_channel::<ClientCommands>(32);
+    let (client_tx, client_rx) = sync_channel::<ClientCommands>(256);
     let camera_width = camera.width;
     let camera_height = camera.height;
-    let handle = thread::Builder::new()
-        .name(String::from("raytracer"))
-        .spawn(move || {
-            let bvh = BVHNode::new(&world, 4, camera.open_time, camera.close_time);
-            println!("bvh ready");
-            loop {
-                let mess = main_rx.recv().expect("main could not receive from channel");
-                println!("main got command");
-                match mess {
-                    MainCommands::Recalc => {
-                        let pixel_colors = create_rays(&camera, SAMPLES_PER_PIXEL)
-                            .enumerate()
-                            .with_min_len(32)
-                            .map(|(pixel, ray_iterator)| {
-                                let mut color_vec = DVec3::ZERO;
-                                for ray in ray_iterator {
-                                    color_vec += ray_color(&ray, MAX_RAY_BOUNCES, &bvh)
-                                }
-                                let final_color: u32 = u32::from_be_bytes(
-                                    color_vec.extend(1.0).as_ref().map(|channel_color| {
-                                        ((channel_color * RAY_SAMPLE_SCALE_FACTOR)
-                                            .sqrt()
-                                            .clamp(0.0, 1.0)
-                                            * 255.0) as u8
-                                    }),
-                                );
 
-                                return (pixel, final_color);
-                            })
-                            .progress_count(camera.width as u64 * camera.height as u64);
-                        if *RENDERER.has_partial_rendering() {
-                            pixel_colors.for_each(|data| {
-                                client_tx
-                                    .send(ClientCommands::RedrawPixel(data))
-                                    .expect("main could not send redraw command");
-                            });
-                        } else {
-                            let mut vec: Vec<u32> = Vec::with_capacity(PIXEL_COUNT);
-                            pixel_colors
-                                .map(|(_, color)| color)
-                                .collect_into_vec(&mut vec);
-                            client_tx
-                                .send(ClientCommands::Redraw(vec))
-                                .expect("main could not send redraw command");
+    rayon::spawn(move || loop {
+        let bvh = bounding_box::BVHNode::<'_, 8>::new(&world, camera.open_time, camera.close_time);
+        println!("bvh ready");
+        let client_channel = main_rx.recv();
+        if client_channel.is_err() {
+            println!("main could not receive from client_channel, likely it has been closed");
+            return;
+        }
+        println!("main got command");
+        match client_channel.unwrap() {
+            MainCommands::Recalc => {
+                let pixel_colors = create_rays::<SAMPLES_PER_PIXEL>(&camera)
+                    .map(|(pixel, rays_for_pixels)| {
+                        let mut color_vec = Vec3A::ZERO;
+                        for ray in rays_for_pixels {
+                            color_vec += ray_color(&ray, MAX_RAY_BOUNCES, &bvh)
                         }
-                    }
+                        let final_color: u32 = u32::from_be_bytes(
+                            color_vec.extend(1.0).as_ref().map(|channel_color| {
+                                ((channel_color * RAY_SAMPLE_SCALE_FACTOR)
+                                    .sqrt()
+                                    .clamp(0.0, 1.0)
+                                    * 255.0) as u8
+                            }),
+                        );
+
+                        return (pixel, final_color);
+                    })
+                    .progress_count(WIDTH as u64 * HEIGHT as u64);
+                if *RENDERER.has_partial_rendering() {
+                    pixel_colors.for_each(|data| {
+                        client_tx
+                            .send(ClientCommands::RedrawPixel(data))
+                            .expect("main could not send redraw command");
+                    });
+                } else {
+                    let mut vec: Vec<u32> = Vec::with_capacity(PIXEL_COUNT);
+                    pixel_colors
+                        .map(|(_, color)| color)
+                        .collect_into_vec(&mut vec);
+                    client_tx
+                        .send(ClientCommands::Redraw(vec))
+                        .expect("main could not send redraw command");
                 }
             }
-        })
-        .expect("no issue when creating ratracing thread");
+        }
+    });
     match RENDERER {
         Renderer::Ppm => {
             let renderer = ppm_renderer::PpmImageRenderer::new(camera_width, camera_height);
@@ -157,9 +189,6 @@ fn main() -> std::io::Result<()> {
             let renderer = pixel_renderer::PixelRenderer::new(camera_width, camera_height);
             renderer.setup_commands(main_tx, client_rx);
         }
-    }
-    if !handle.is_finished() {
-        handle.join().expect("why should join on main fail?");
     }
     Ok(())
 }

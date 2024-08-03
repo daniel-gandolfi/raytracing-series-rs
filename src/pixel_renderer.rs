@@ -19,8 +19,7 @@ pub struct PixelRenderer {
 }
 impl PixelRenderer {
     pub const fn new(width: u16, height: u16) -> PixelRenderer {
-        let pixel_renderer = PixelRenderer { width, height };
-        pixel_renderer
+        PixelRenderer { width, height }
     }
 
     pub fn setup_commands(
@@ -50,7 +49,7 @@ impl PixelRenderer {
             while let Ok(command_res) = client_rx.try_recv() {
                 commands.push(command_res);
             }
-            let has_commands_to_run = commands.len() != 0;
+            let has_commands_to_run = !commands.is_empty();
             while let Some(command) = commands.pop() {
                 match command {
                     ClientCommands::Redraw(vec) => {
@@ -65,19 +64,20 @@ impl PixelRenderer {
                         }
                     }
                     ClientCommands::RedrawPixel((pixel, color)) => {
-                        pixels.frame_mut()[pixel * 4..pixel * 4 + 4].copy_from_slice(&[
-                            (color >> 24 & 255) as u8,
-                            (color >> 16 & 255) as u8,
-                            (color >> 8 & 255) as u8,
-                            255,
-                        ]);
+                        pixels.frame_mut()[pixel as usize * 4..pixel as usize * 4 + 4]
+                            .copy_from_slice(&[
+                                (color >> 24 & 255) as u8,
+                                (color >> 16 & 255) as u8,
+                                (color >> 8 & 255) as u8,
+                                255,
+                            ]);
                     }
                 }
             }
             if has_commands_to_run {
                 pixels.render().expect("could not render pixels");
             }
-            event_loop.pump_events(Some(Duration::new(0, 500)), |event, _| {
+            event_loop.pump_events(Some(Duration::ZERO), |event, _| {
                 // Handle input events
                 if input.update(&event) {
                     // Close events
