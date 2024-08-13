@@ -1,9 +1,16 @@
 use glam::Vec3A;
 
-use crate::{camera::Camera, material::Material, ray::RayHittableEnum, shapes::Sphere};
+use crate::{
+    camera::Camera, material::Material, ray::RayHittableEnum, shapes::Sphere,
+    texture::PlainColorTexture,
+};
 
-const MATERIAL_GROUND: Material = Material::Lambert(Vec3A::new(0.8, 0.8, 0.0));
-const MATERIAL_CENTER: Material = Material::Lambert(Vec3A::new(0.1, 0.2, 0.5));
+const MATERIAL_GROUND: Material = Material::Lambert(crate::texture::TextureEnum::Plain(
+    PlainColorTexture::new(Vec3A::new(0.8, 0.8, 0.0)),
+));
+const MATERIAL_CENTER: Material = Material::Lambert(crate::texture::TextureEnum::Plain(
+    PlainColorTexture::new(Vec3A::new(0.1, 0.2, 0.5)),
+));
 const MATERIAL_LEFT: Material = Material::Dielectric(1.5);
 const MATERIAL_BUBBLE: Material = Material::Dielectric(1.0 / 1.5);
 const MATERIAL_RIGHT: Material = Material::Metal(Vec3A::new(0.8, 0.6, 0.2), 1.0);
@@ -41,4 +48,12 @@ pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
             velocity: Vec3A::ZERO,
         }),
     ]
+}
+
+pub fn create_camera(w: u16, ar: f64) -> Camera {
+    const LOOKFROM: Vec3A = Vec3A::new(13.0, 2.0, 3.0);
+    const LOOKAT: Vec3A = Vec3A::new(0.0, 0.0, 0.0);
+    const VUP: Vec3A = Vec3A::new(0.0, 1.0, 0.0);
+    const FOV: f32 = 20.0;
+    Camera::new(LOOKFROM, LOOKAT, VUP, w, FOV, ar, 0.0, 10.0, 0.0, 1.0)
 }

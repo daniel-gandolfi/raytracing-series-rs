@@ -3,10 +3,20 @@ use itertools::Itertools;
 use rand::Rng;
 
 use crate::{
-    camera::Camera, material::Material, ray::RayHittableEnum, rng::get_rng, shapes::Sphere,
+    camera::Camera,
+    material::Material,
+    ray::RayHittableEnum,
+    rng::get_rng,
+    shapes::Sphere,
+    texture::{PlainColorTexture, TextureEnum},
 };
 
-const MATERIAL_GROUND: Material = Material::Lambert(Vec3A::splat(0.5));
+const MATERIAL_GROUND: Material = Material::Lambert(TextureEnum::CheckerTexture(
+    crate::texture::CheckerTexture::new(
+        PlainColorTexture::new(Vec3A::new(0.2, 0.3, 0.1)),
+        PlainColorTexture::new(Vec3A::new(0.9, 0.9, 0.9)),
+    ),
+));
 
 fn random_color(range: std::ops::Range<f32>) -> Vec3A {
     let random = get_rng();
@@ -45,7 +55,7 @@ pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
                 Sphere {
                     center,
                     radius: 0.2,
-                    material: Material::Lambert(albedo),
+                    material: Material::Lambert(TextureEnum::Plain(PlainColorTexture::new(albedo))),
                     velocity: Vec3A::new(
                         rng.gen::<f32>() * rng.gen::<f32>(),
                         rng.gen::<f32>() * rng.gen::<f32>(),
@@ -92,7 +102,9 @@ pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
         Sphere {
             center: Vec3A::new(-4.0, 1.0, 0.0),
             radius: 1.0,
-            material: Material::Lambert(Vec3A::new(0.4, 0.2, 0.1)),
+            material: Material::Lambert(TextureEnum::Plain(PlainColorTexture::new(Vec3A::new(
+                0.4, 0.2, 0.1,
+            )))),
             velocity: Vec3A::ZERO,
         },
         Sphere {
@@ -109,4 +121,12 @@ pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
     spheres_iter.collect_into(&mut world_dyn);
 
     world_dyn
+}
+
+pub fn create_camera(w: u16, ar: f64) -> Camera {
+    const LOOKFROM: Vec3A = Vec3A::new(13.0, 2.0, 3.0);
+    const LOOKAT: Vec3A = Vec3A::new(0.0, 0.0, 0.0);
+    const VUP: Vec3A = Vec3A::new(0.0, 1.0, 0.0);
+    const FOV: f32 = 20.0;
+    Camera::new(LOOKFROM, LOOKAT, VUP, w, FOV, ar, 0.0, 10.0, 0.0, 1.0)
 }

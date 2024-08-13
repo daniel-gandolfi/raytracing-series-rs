@@ -1,5 +1,6 @@
 #![allow(clippy::needless_return)]
 #![feature(thread_local)]
+#![feature(const_trait_impl)]
 #![feature(iter_array_chunks)]
 #![feature(iter_collect_into)]
 #![feature(test)]
@@ -21,9 +22,10 @@ mod ppm_renderer;
 mod ray;
 mod rng;
 mod shapes;
+mod texture;
 mod world_creation;
 use crate::camera::Camera;
-use crate::world_creation::heavy_rand_world::create_world;
+use crate::world_creation::checkerbox_pattern::{create_camera, create_world};
 use ray::{create_rays, Ray, RayHittableEnum};
 use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
@@ -36,13 +38,7 @@ const WIDTH: u16 = if cfg!(debug_assertions) {
 const ASPECT_RATIO: f64 = 16.0 / 9.0;
 const HEIGHT: u16 = (WIDTH as f64 / ASPECT_RATIO) as u16;
 const PIXEL_COUNT: usize = WIDTH as usize * HEIGHT as usize;
-fn create_camera(w: u16, ar: f64) -> Camera {
-    const LOOKFROM: Vec3A = Vec3A::new(13.0, 2.0, 3.0);
-    const LOOKAT: Vec3A = Vec3A::new(0.0, 0.0, 0.0);
-    const VUP: Vec3A = Vec3A::new(0.0, 1.0, 0.0);
-    const FOV: f32 = 20.0;
-    Camera::new(LOOKFROM, LOOKAT, VUP, w, FOV, ar, 0.0, 10.0, 0.0, 1.0)
-}
+
 const SAMPLES_PER_PIXEL: usize = if cfg!(debug_assertions) { 4 } else { 48 };
 const MAX_RAY_BOUNCES: u8 = if cfg!(debug_assertions) { 4 } else { 8 };
 const RAY_SAMPLE_SCALE_FACTOR: f32 = 1.0 / SAMPLES_PER_PIXEL as f32;

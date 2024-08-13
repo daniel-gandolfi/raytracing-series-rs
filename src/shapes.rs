@@ -4,7 +4,7 @@ use crate::ray::{HitRecord, Ray};
 use glam::Vec3A;
 use std::ops::Range;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_more::Constructor)]
 pub struct Sphere {
     pub material: Material,
     pub center: Vec3A,
@@ -14,7 +14,7 @@ pub struct Sphere {
 
 impl Sphere {
     fn center(&self, time: f32) -> Vec3A {
-        return self.velocity.mul_add(Vec3A::splat(time), self.center)
+        return self.velocity.mul_add(Vec3A::splat(time), self.center);
     }
     pub fn hit(&self, ray: &Ray, range: &Range<f32>) -> Option<HitRecord> {
         let center = self.center(ray.time);

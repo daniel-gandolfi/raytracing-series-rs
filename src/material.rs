@@ -1,13 +1,14 @@
 use crate::{
     ray::{random_unit_vector, HitRecord, Ray},
     rng::get_rng,
+    texture::Texture,
 };
 use glam::Vec3A;
 use rand::Rng;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Material {
-    Lambert(Vec3A),
+    Lambert(crate::texture::TextureEnum),
     Metal(Vec3A, f32),
     Dielectric(f32),
 }
@@ -17,7 +18,6 @@ pub struct MaterialCalc {
     pub rebounce: Ray,
 }
 
-
 fn is_scatter_near_zero(direction: &Vec3A) -> bool {
     const LIMIT: f32 = 1e-8;
     const LIMIT_DEVC3: Vec3A = Vec3A::splat(LIMIT);
@@ -25,11 +25,9 @@ fn is_scatter_near_zero(direction: &Vec3A) -> bool {
     direction.cmplt(LIMIT_DEVC3).all()
 }
 
-
 fn reflect(direction: Vec3A, normal: Vec3A) -> Vec3A {
     direction - 2.0 * direction.dot(normal) * normal
 }
-
 
 fn refract(uv: Vec3A, normal: Vec3A, etai_over_etat: f32) -> Vec3A {
     let cos_theta = 1.0_f32.min(-uv.dot(normal));
@@ -39,7 +37,6 @@ fn refract(uv: Vec3A, normal: Vec3A, etai_over_etat: f32) -> Vec3A {
     ray_out_perp + ray_out_parallel
 }
 
-
 fn reflectance(cosine: f32, refraction_index: f32) -> f32 {
     // Use Schlick's approximation for reflectance.
     let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
@@ -48,10 +45,9 @@ fn reflectance(cosine: f32, refraction_index: f32) -> f32 {
 }
 
 impl Material {
-    
     pub fn on_ray_hit(&self, ray: &Ray, hit: &HitRecord) -> Option<MaterialCalc> {
         match self {
-            Material::Lambert(albedo) => {
+            Material::Lambert(texture) => {
                 let scatter_direction = hit.normal + random_unit_vector();
 
                 let scattered = Ray {
@@ -65,7 +61,14 @@ impl Material {
                 };
 
                 Some(MaterialCalc {
-                    attenuation: *albedo,
+                    attenuation: match texture {
+                        crate::texture::TextureEnum::Plain(texture) => {
+                            texture.get_uv_color(0.0, 0.0, &hit.point)
+                        }
+                        crate::texture::TextureEnum::CheckerTexture(texture) => {
+                            texture.get_uv_color(0.0, 0.0, &hit.point)
+                        }
+                    },
                     rebounce: scattered,
                 })
             }
