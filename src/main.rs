@@ -17,6 +17,7 @@ mod bounding_box;
 mod camera;
 mod ipc;
 mod material;
+mod perlin_noise;
 mod pixel_renderer;
 mod ppm_renderer;
 mod ray;
@@ -25,13 +26,13 @@ mod shapes;
 mod texture;
 mod world_creation;
 use crate::camera::Camera;
-use crate::world_creation::checkerbox_pattern::{create_camera, create_world};
+use crate::world_creation::perlin_noise::{create_camera, create_world};
 use ray::{create_rays, Ray, RayHittableEnum};
 use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
 
 const WIDTH: u16 = if cfg!(debug_assertions) {
-    20_u16
+    600_u16
 } else {
     1200_u16
 };

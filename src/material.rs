@@ -6,7 +6,7 @@ use crate::{
 use glam::Vec3A;
 use rand::Rng;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Material {
     Lambert(crate::texture::TextureEnum),
     Metal(Vec3A, f32),
@@ -66,6 +66,9 @@ impl Material {
                             texture.get_uv_color(0.0, 0.0, &hit.point)
                         }
                         crate::texture::TextureEnum::CheckerTexture(texture) => {
+                            texture.get_uv_color(0.0, 0.0, &hit.point)
+                        }
+                        crate::texture::TextureEnum::PerlinNoise(texture) => {
                             texture.get_uv_color(0.0, 0.0, &hit.point)
                         }
                     },

@@ -17,8 +17,6 @@ derive_more = "^0.99.17"
 glam = { version = "^0.28.0", features = ["std","rand","fast-math"] }
 indicatif = { version = "^0.17.6", features = ["rayon"] }
 itertools = "^0.11.0"
-flame = "0.2.2"
-flamer = "0.5"
 rand = { version = "^0.8.5", features = [
     "std",
     "std_rng",
@@ -30,6 +28,7 @@ wgpu = "0.16.0"
 lazy_static = "^1.5.0"
 pixels = "^0.13.0"
 winit_input_helper = "^0.16"
+noise = "0.9.0"
 [profile.release]
 incremental = true
 lto = "fat"

@@ -123,6 +123,7 @@ pub fn create_rays<const SAMPLES_PER_SQUARE: usize>(
 
     (0..(camera_height * camera_width))
         .into_par_iter()
+        .with_min_len(256)
         .map(move |compound_width_height| {
             let j = compound_width_height / camera_width;
             let i = compound_width_height % camera_width;
