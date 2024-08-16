@@ -57,7 +57,7 @@ impl PerlinNoiseTexture {
 impl Texture for PerlinNoiseTexture {
     fn get_uv_color(&self, u: f32, v: f32, p: &Vec3A) -> Vec3A {
 //        let noise = self.noise.get([p.x as f64,p.y as f64,p.z as f64]);
-        let noise = self.noise.get_noise(p) as f32;
+        let noise = self.noise.get_noise(p);
 //        Vec3A::new(noise*p.x, noise*p.y, noise*p.z)
         Vec3A::splat(noise)
     }
