@@ -12,8 +12,8 @@ impl PlainColorTexture {
     }
 }
 impl Texture for &PlainColorTexture {
-    fn get_uv_color(&self, u: f32, v: f32, p: &Vec3A) -> Vec3A {
-        return self.0.clone();
+    fn get_uv_color(&self, _u: f32, _v: f32, _p: &Vec3A) -> Vec3A {
+        return self.0;
     }
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -42,24 +42,34 @@ impl Texture for &CheckerTexture {
 
 #[derive(Debug, Clone)]
 pub struct PerlinNoiseTexture {
-//    noise: noise::Perlin,
-    noise: crate::perlin_noise::PerlinNoise,
+    //    noise: noise::Perlin,
+    noise: Box<crate::perlin_noise::PerlinNoise>,
+    scale: f32,
 }
 impl PerlinNoiseTexture {
-    pub fn new(size: usize) -> Self {
+    pub fn new(scale: f32) -> Self {
         Self {
-//            noise: noise::Perlin::new(size as u32),
-            noise: crate::perlin_noise::PerlinNoise::new(),
+            //            noise: noise::Perlin::new(size as u32),
+            noise: Box::new(crate::perlin_noise::PerlinNoise::new()),
+            scale,
         }
     }
 }
 
 impl Texture for PerlinNoiseTexture {
-    fn get_uv_color(&self, u: f32, v: f32, p: &Vec3A) -> Vec3A {
-//        let noise = self.noise.get([p.x as f64,p.y as f64,p.z as f64]);
-        let noise = self.noise.get_noise(p);
-//        Vec3A::new(noise*p.x, noise*p.y, noise*p.z)
-        Vec3A::splat(noise)
+    fn get_uv_color(&self, _u: f32, _v: f32, p: &Vec3A) -> Vec3A {
+        //        let noise = self.noise.get([p.x as f64,p.y as f64,p.z as f64]);
+        //        Vec3A::new(noise*p.x, noise*p.y, noise*p.z)
+
+        //        Vec3A::splat(self.noise.get_noise(&Vec3A::new(
+        //    p.x * self.scale,
+        //    p.y * self.scale,
+        //    p.z * self.scale,
+        //)).remap(-1.0, 1.0, 0.0, 1.0) )
+
+        Vec3A::splat(
+            0.5 * (1.0 + (self.scale * p.z + 10.0 * self.noise.turbulence(p, Some(7))).sin()),
+        )
     }
 }
 

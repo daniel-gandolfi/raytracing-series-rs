@@ -6,7 +6,7 @@ use crate::{
 
 pub fn create_world(_camera: &Camera) -> Vec<RayHittableEnum> {
     let material = Material::Lambert(TextureEnum::PerlinNoise(
-        crate::texture::PerlinNoiseTexture::new(256),
+        crate::texture::PerlinNoiseTexture::new(4.0),
     ));
     return vec![
         RayHittableEnum::Sphere(Sphere::new(
