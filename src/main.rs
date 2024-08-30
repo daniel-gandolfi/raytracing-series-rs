@@ -4,7 +4,6 @@
 #![feature(iter_array_chunks)]
 #![feature(iter_collect_into)]
 #![feature(test)]
-#![feature(const_fn_floating_point_arithmetic)]
 
 extern crate test;
 
@@ -26,7 +25,26 @@ mod shapes;
 mod texture;
 mod world_creation;
 use crate::camera::Camera;
-use crate::world_creation::perlin_noise::{create_camera, create_world};
+use crate::world_creation::checkerbox_pattern::{
+    create_camera as checkerbox_pattern_create_camera,
+    create_world as checkerbox_pattern_create_world,
+};
+use crate::world_creation::fov::{
+    create_camera as fov_create_camera, create_world as fov_create_world,
+};
+use crate::world_creation::grid_for_tests::{
+    create_camera as grid_for_tests_create_camera, create_world as grid_for_tests_create_world,
+};
+use crate::world_creation::heavy_rand_world::{
+    create_camera as heavy_rand_world_create_camera, create_world as heavy_rand_world_create_world,
+};
+use crate::world_creation::image_texturemapping::{
+    create_camera as image_texturemapping_create_camera,
+    create_world as image_texturemapping_create_world,
+};
+use crate::world_creation::perlin_noise::{
+    create_camera as perlin_noise_create_camera, create_world as perlin_noise_create_world,
+};
 use ray::{create_rays, Ray, RayHittableEnum};
 use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
@@ -44,7 +62,10 @@ const SAMPLES_PER_PIXEL: usize = if cfg!(debug_assertions) { 4 } else { 48 };
 const MAX_RAY_BOUNCES: u8 = if cfg!(debug_assertions) { 4 } else { 8 };
 const RAY_SAMPLE_SCALE_FACTOR: f32 = 1.0 / SAMPLES_PER_PIXEL as f32;
 
-fn prepare_world(camera: &Camera) -> Vec<RayHittableEnum> {
+fn prepare_world(
+    create_world: fn(&Camera) -> Vec<RayHittableEnum>,
+    camera: &Camera,
+) -> Vec<RayHittableEnum> {
     let mut world = create_world(&camera);
     world.sort_by(|a, b| {
         let bb_a = a.bounding_box(camera.open_time, camera.close_time);
@@ -123,8 +144,44 @@ fn main() -> std::io::Result<()> {
     const RENDERER: Renderer = Renderer::PixelWindow {
         partial_render: true,
     };
+    print!(
+        "Select a scene:
+  1. grid_for_tests
+  2. heavy_rand_world
+  3. checkerbox_pattern
+  4. fov
+  5. perlin_noise
+  6. image_texturemapping\n\n"
+    );
+    let mut s = String::with_capacity(2);
+    std::io::stdin()
+        .read_line(&mut s)
+        .expect("Did not enter a correct string");
+
+    let (create_world, create_camera): (
+        fn(&Camera) -> Vec<RayHittableEnum>,
+        fn(u16, f64) -> Camera,
+    ) = match s.trim() {
+        "1" => (grid_for_tests_create_world, grid_for_tests_create_camera),
+        "2" => (
+            heavy_rand_world_create_world,
+            heavy_rand_world_create_camera,
+        ),
+        "3" => (
+            checkerbox_pattern_create_world,
+            checkerbox_pattern_create_camera,
+        ),
+        "4" => (fov_create_world, fov_create_camera),
+        "5" => (perlin_noise_create_world, perlin_noise_create_camera),
+        "6" => (
+            image_texturemapping_create_world,
+            image_texturemapping_create_camera,
+        ),
+        _ => panic!("Invalid input"),
+    };
+
     let camera = create_camera(WIDTH, ASPECT_RATIO);
-    let world = prepare_world(&camera);
+    let world = prepare_world(create_world, &camera);
     let (main_tx, main_rx) = sync_channel::<MainCommands>(4);
     let (client_tx, client_rx) = sync_channel::<ClientCommands>(256);
     let camera_width = camera.width;

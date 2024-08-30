@@ -71,6 +71,9 @@ impl Material {
                         crate::texture::TextureEnum::PerlinNoise(texture) => {
                             texture.get_uv_color(0.0, 0.0, &hit.point)
                         }
+                        crate::texture::TextureEnum::Image(texture) => {
+                            texture.get_uv_color(hit.u, hit.v, &hit.point)
+                        }
                     },
                     rebounce: scattered,
                 })

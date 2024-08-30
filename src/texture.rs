@@ -1,4 +1,5 @@
 use glam::Vec3A;
+use image::{GenericImageView, RgbaImage};
 
 pub trait Texture {
     fn get_uv_color(&self, u: f32, v: f32, p: &Vec3A) -> Vec3A;
@@ -73,9 +74,30 @@ impl Texture for PerlinNoiseTexture {
     }
 }
 
+impl Texture for RgbaImage {
+    fn get_uv_color(&self, u: f32, v: f32, _p: &Vec3A) -> Vec3A {
+        let u = u.clamp(0.0, 1.0);
+        let v = 1.0 - v.clamp(0.0, 1.0);
+
+        let width_f32 = self.width() as f32;
+        let height_f32 = self.height() as f32;
+
+        let i = ((u * width_f32) as u32).clamp(0, self.width() - 1);
+        let j = ((v * height_f32) as u32).clamp(0, self.height() - 1);
+
+        let pixel = self.get_pixel(i, j);
+        Vec3A::new(
+            pixel.0[0] as f32 / 255.0,
+            pixel.0[1] as f32 / 255.0,
+            pixel.0[2] as f32 / 255.0,
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TextureEnum {
     Plain(PlainColorTexture),
     CheckerTexture(CheckerTexture),
     PerlinNoise(PerlinNoiseTexture),
+    Image(Box<image::RgbaImage>),
 }

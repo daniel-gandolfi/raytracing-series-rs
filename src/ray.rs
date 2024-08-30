@@ -21,6 +21,8 @@ impl Ray {
 }
 
 pub struct HitRecord<'a> {
+    pub u: f32,
+    pub v: f32,
     pub point: Vec3A,
     pub normal: Vec3A,
     pub time: f32,

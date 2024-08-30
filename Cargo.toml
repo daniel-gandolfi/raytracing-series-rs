@@ -29,6 +29,7 @@ lazy_static = "^1.5.0"
 pixels = "^0.13.0"
 winit_input_helper = "^0.16"
 noise = "0.9.0"
+image = "0.25.2"
 [profile.release]
 incremental = true
 lto = "fat"

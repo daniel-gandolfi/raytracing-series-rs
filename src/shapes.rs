@@ -1,7 +1,7 @@
 use crate::bounding_box::{BoundingBox, BoundingBoxWrapped};
 use crate::material::Material;
 use crate::ray::{HitRecord, Ray};
-use glam::Vec3A;
+use glam::{FloatExt, Vec3A};
 use std::ops::Range;
 
 #[derive(Debug, Clone, derive_more::Constructor)]
@@ -52,7 +52,10 @@ impl Sphere {
             let hit_point = ray.at(hit_t);
             let hit_normal = (hit_point - center) / self.radius;
             let front_face = ray.direction.dot(hit_normal) < 0.0;
+            let (u, v) = get_sphere_uv(&hit_normal);
             Option::Some(HitRecord {
+                u,
+                v,
                 time: hit_t,
                 point: hit_point,
                 normal: if front_face { hit_normal } else { -hit_normal },
@@ -61,6 +64,18 @@ impl Sphere {
             })
         }
     }
+}
+
+pub fn get_sphere_uv(point: &Vec3A) -> (f32, f32) {
+    const HALF_PI: f32 = std::f32::consts::PI / 2.0;
+    let phi = (-point.z).atan2(point.x);
+    let theta = point.y.asin();
+    assert!(!phi.is_nan());
+    assert!(!theta.is_nan());
+    let u = phi.remap(-HALF_PI, HALF_PI, 0.0, 1.0);
+    let v = (theta).remap(-HALF_PI, HALF_PI, 0.0, 1.0);
+
+    (u, v)
 }
 
 impl BoundingBoxWrapped for Sphere {
